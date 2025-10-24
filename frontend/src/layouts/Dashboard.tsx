@@ -1,6 +1,6 @@
 import React, { Suspense } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
-import { Bell, User, LogOut } from "lucide-react";
+import { Bell, User, LogOut, Sun, Moon } from "lucide-react";
 
 import {
   Sidebar,
@@ -28,9 +28,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import useDashboardItems from "../hooks/useDashboardItems";
 import useAuth from "../hooks/useAuth";
+import { useTheme } from "../contexts/ThemeContext";
 
 const DashboardNavbar = () => {
   const { user, signOut } = useAuth();
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -72,6 +74,14 @@ const DashboardNavbar = () => {
                 <DropdownMenuItem>
                   <User className="mr-2 h-4 w-4" />
                   <span>Perfil</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTheme}>
+                  {theme === 'light' ? (
+                    <Moon className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Sun className="mr-2 h-4 w-4" />
+                  )}
+                  <span>{theme === 'light' ? 'Modo Escuro' : 'Modo Claro'}</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => signOut()}>
                   <LogOut className="mr-2 h-4 w-4" />
