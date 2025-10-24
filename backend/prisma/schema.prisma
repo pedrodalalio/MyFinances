@@ -1,0 +1,330 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+enum TransactionType {
+  EXPENSE
+  CREDIT_CARD
+  TAX
+  INVESTMENT
+}
+
+enum PaymentMethod {
+  PIX
+  CASH
+  DEBIT_CARD
+  BANK_TRANSFER
+  OTHER
+}
+
+enum TaxType {
+  MEI
+  IRPF
+  IPVA
+  IRRF
+  ITR
+  ITCMD
+  IPTU
+  COFINS
+  PIS
+  ICMS
+  ISS
+  IOF
+  OTHER
+}
+
+enum TaxFrequency {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum InvestmentType {
+  STOCKS
+  FUNDS
+  CRYPTO
+  SAVINGS
+  CDB
+  LCI_LCA
+  DEBENTURES
+  TREASURY
+  OTHER
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  avatar        String?
+  role          Role     @default(MEMBER)
+  created_at    DateTime @default(now())
+
+  financialData FinancialData[]
+  creditCardPurchases CreditCardPurchase[]
+  salaryProfiles SalaryProfile[]
+  expenses Expense[]
+  monthlyInvestments MonthlyInvestment[]
+  taxes Tax[]
+  investmentPortfolio InvestmentPortfolio?
+
+  @@map("users")
+}
+
+model FinancialData {
+  id          String @id @default(uuid())
+  month       String
+  year        Int
+  user_id     String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Monthly income
+  main_income     Decimal @default(0)
+  checking_account Decimal @default(0)
+  previous_balance Decimal @default(0)
+  total_in_account Decimal @default(0)
+
+  // Calculated totals
+  expense_subtotal      Decimal @default(0)
+  investment_subtotal   Decimal @default(0)
+  credit_card_subtotal  Decimal @default(0)
+  tax_subtotal          Decimal @default(0)
+  total_income          Decimal @default(0)
+  total_expenses        Decimal @default(0)
+  final_balance         Decimal @default(0)
+  expected_total_money  Decimal @default(0)
+
+  // Controle de fechamento do mês
+  is_confirmed Boolean @default(false)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  transactions Transaction[]
+  investments Investment[]
+
+  @@unique([user_id, month, year])
+  @@map("financial_data")
+}
+
+model Transaction {
+  id               String          @id @default(uuid())
+  name             String
+  actual_cost      Decimal
+  difference       Decimal
+  type             TransactionType
+  financial_data_id String
+  created_at       DateTime        @default(now())
+
+  financialData FinancialData @relation(fields: [financial_data_id], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+model Investment {
+  id               String @id @default(uuid())
+  type             String
+  balance          Decimal
+  financial_data_id String
+  created_at       DateTime @default(now())
+
+  financialData FinancialData @relation(fields: [financial_data_id], references: [id], onDelete: Cascade)
+
+  @@map("investments")
+}
+
+model CreditCardPurchase {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  total_amount    Decimal
+  installments    Int?
+  installment_amount Decimal
+  start_month     String
+  start_year      Int
+  end_month       String?
+  end_year        Int?
+  category        String?
+  is_recurring    Boolean  @default(false)
+  user_id         String
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  installments_data CreditCardInstallment[]
+
+  @@map("credit_card_purchases")
+}
+
+model CreditCardInstallment {
+  id                String @id @default(uuid())
+  purchase_id       String
+  purchase_name     String
+  installment_amount Decimal
+  current_installment Int
+  total_installments Int
+  month            String
+  year             Int
+  created_at       DateTime @default(now())
+
+  creditCardPurchase CreditCardPurchase @relation(fields: [purchase_id], references: [id], onDelete: Cascade)
+
+  @@map("credit_card_installments")
+}
+
+model SalaryProfile {
+  id          String    @id @default(uuid())
+  amount      Decimal
+  description String?
+  start_date  DateTime
+  end_date    DateTime?
+  is_active   Boolean   @default(true)
+  user_id     String
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("salary_profiles")
+}
+
+model Expense {
+  id             String        @id @default(uuid())
+  name           String
+  description    String?
+  amount         Decimal
+  payment_method PaymentMethod
+  category       String?
+  month          String
+  year           Int
+  date           DateTime      @default(now())
+  user_id        String
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("expenses")
+}
+
+model MonthlyInvestment {
+  id                String         @id @default(uuid())
+  name              String
+  description       String?
+  amount            Decimal
+  investment_type   InvestmentType
+  category          String?
+  month             String
+  year              Int
+  date              DateTime       @default(now())
+  user_id           String
+  created_at        DateTime       @default(now())
+  updated_at        DateTime       @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("monthly_investments")
+}
+
+model Tax {
+  id              String        @id @default(uuid())
+  tax_type        TaxType
+  amount          Decimal
+  payment_method  PaymentMethod
+  frequency       TaxFrequency
+  day_of_month    Int
+  month           String
+  year            Int
+  due_date        DateTime
+  user_id         String
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("taxes")
+}
+
+enum AssetType {
+  CDB
+  TREASURY_DIRECT
+  LCI_LCA
+  SAVINGS
+  STOCKS
+  FUNDS
+  CRYPTO
+  DEBENTURES
+  OTHER
+}
+
+enum AssetStatus {
+  ACTIVE
+  MATURED
+  SOLD
+  CANCELLED
+}
+
+model InvestmentPortfolio {
+  id                String   @id @default(uuid())
+  user_id           String
+  total_invested    Decimal  @default(0)
+  current_value     Decimal  @default(0)
+  total_return      Decimal  @default(0)
+  return_percentage Decimal  @default(0)
+  last_updated      DateTime @default(now())
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  user   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  assets PortfolioAsset[]
+
+  @@unique([user_id])
+  @@map("investment_portfolios")
+}
+
+model PortfolioAsset {
+  id                  String      @id @default(uuid())
+  portfolio_id        String
+  name                String
+  asset_type          AssetType
+  initial_investment  Decimal
+  current_value       Decimal
+  quantity            Decimal?    // Para ações, cotas, etc.
+  purchase_date       DateTime
+  maturity_date       DateTime?   // Para CDbs, Tesouro, etc.
+  interest_rate       Decimal?    // Taxa de juros para renda fixa
+  status              AssetStatus @default(ACTIVE)
+  notes               String?
+  broker              String?     // Corretora
+  created_at          DateTime    @default(now())
+  updated_at          DateTime    @updatedAt
+
+  portfolio InvestmentPortfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade)
+  history   AssetHistory[]
+
+  @@map("portfolio_assets")
+}
+
+model AssetHistory {
+  id         String   @id @default(uuid())
+  asset_id   String
+  value      Decimal
+  date       DateTime
+  notes      String?
+  created_at DateTime @default(now())
+
+  asset PortfolioAsset @relation(fields: [asset_id], references: [id], onDelete: Cascade)
+
+  @@map("asset_history")
+}
