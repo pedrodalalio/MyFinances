@@ -7,6 +7,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   signOut: () => void;
+  refreshToken: () => Promise<string | null>;
   loading: boolean;
 }
 
@@ -71,12 +72,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     localStorage.removeItem('token');
   };
 
+  const refreshToken = async (): Promise<string | null> => {
+    try {
+      const { token } = await apiService.refreshToken();
+      localStorage.setItem('token', token);
+      return token;
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      signOut(); // Auto logout if refresh fails
+      return null;
+    }
+  };
+
   const value = {
     user,
     isAuthenticated: !!user,
     signIn,
     signUp,
     signOut,
+    refreshToken,
     loading
   };
 

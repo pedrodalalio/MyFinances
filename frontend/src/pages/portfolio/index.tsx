@@ -183,7 +183,15 @@ const PortfolioPage = () => {
     try {
       const totalValue = parseFloat(values.total_value);
       const grossReturn = values.gross_return ? parseFloat(values.gross_return) : 0;
-      const initialInvestment = totalValue - grossReturn; // Valor investido = total - rendimento
+
+      // Validação para evitar valores negativos
+      if (grossReturn > totalValue) {
+        alert("O rendimento bruto não pode ser maior que o valor total!");
+        setLoading(false);
+        return;
+      }
+
+      const initialInvestment = totalValue - grossReturn; // Valor investido inicialmente = valor atual - rendimento
 
       const requestBody = {
         name: values.name,
@@ -214,7 +222,15 @@ const PortfolioPage = () => {
     try {
       const totalValue = parseFloat(values.total_value);
       const grossReturn = values.gross_return ? parseFloat(values.gross_return) : 0;
-      const initialInvestment = totalValue - grossReturn; // Valor investido = total - rendimento
+
+      // Validação para evitar valores negativos
+      if (grossReturn > totalValue) {
+        alert("O rendimento bruto não pode ser maior que o valor total!");
+        setLoading(false);
+        return;
+      }
+
+      const initialInvestment = totalValue - grossReturn; // Valor investido inicialmente = valor atual - rendimento
 
       const requestBody = {
         name: values.name,

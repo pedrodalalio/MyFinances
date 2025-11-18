@@ -61,28 +61,44 @@ const COLORS = [
 ];
 
 export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
-  // Dados para o gráfico de distribuição por tipo
+  // Verifica se todos os assets são do mesmo tipo
+  const assetTypes = [...new Set(assets.map(a => a.asset_type))];
+  const isSingleType = assetTypes.length === 1;
+
+  // Dados para distribuição - por tipo OU por asset individual se todos forem do mesmo tipo
   const distributionData = React.useMemo(() => {
-    const typeMap = new Map<string, number>();
+    if (isSingleType && assets.length > 1) {
+      // Se todos são do mesmo tipo, mostra distribuição por asset individual
+      return assets.map((asset, index) => ({
+        name: asset.name.length > 20 ? asset.name.substring(0, 20) + '...' : asset.name,
+        value: asset.current_value,
+        percentage: 0, // Será calculado após termos o total
+        assetId: asset.id // Adiciona ID para evitar problemas de mapeamento
+      }));
+    } else {
+      // Se há tipos diferentes, mostra distribuição por tipo
+      const typeMap = new Map<string, number>();
 
-    assets.forEach(asset => {
-      const type = getAssetTypeLabel(asset.asset_type);
-      const current = typeMap.get(type) || 0;
-      typeMap.set(type, current + asset.current_value);
-    });
+      assets.forEach(asset => {
+        const type = getAssetTypeLabel(asset.asset_type);
+        const current = typeMap.get(type) || 0;
+        typeMap.set(type, current + asset.current_value);
+      });
 
-    return Array.from(typeMap.entries()).map(([name, value]) => ({
-      name,
-      value,
-      percentage: 0 // Será calculado após termos o total
-    }));
-  }, [assets]);
+      return Array.from(typeMap.entries()).map(([name, value]) => ({
+        name,
+        value,
+        percentage: 0 // Será calculado após termos o total
+      }));
+    }
+  }, [assets, isSingleType]);
 
   // Calcular percentuais
   const totalValue = distributionData.reduce((sum, item) => sum + item.value, 0);
-  distributionData.forEach(item => {
-    item.percentage = totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-  });
+  const distributionDataWithPercentage = distributionData.map(item => ({
+    ...item,
+    percentage: totalValue > 0 ? (item.value / totalValue) * 100 : 0
+  }));
 
   // Dados para o gráfico de rentabilidade por ativo
   const profitabilityData = React.useMemo(() => {
@@ -167,7 +183,7 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Distribuição por Tipo</CardTitle>
+            <CardTitle>Distribuição</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -193,16 +209,21 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Gráfico de Pizza - Distribuição por Tipo */}
+        {/* Gráfico de Pizza - Distribuição */}
         <Card>
           <CardHeader>
-            <CardTitle>Distribuição por Tipo</CardTitle>
+            <CardTitle>
+              {isSingleType && assets.length > 1
+                ? "Distribuição por CDB"
+                : "Distribuição por Tipo"
+              }
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={distributionData}
+                  data={distributionDataWithPercentage}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -211,7 +232,7 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {distributionData.map((entry, index) => (
+                  {distributionDataWithPercentage.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -281,7 +302,9 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left p-2">Tipo</th>
+                  <th className="text-left p-2">
+                    {isSingleType && assets.length > 1 ? "CDB" : "Tipo"}
+                  </th>
                   <th className="text-right p-2">Quantidade</th>
                   <th className="text-right p-2">Valor Investido</th>
                   <th className="text-right p-2">Valor Atual</th>
@@ -290,26 +313,51 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
                 </tr>
               </thead>
               <tbody>
-                {distributionData.map((type, index) => {
-                  const typeAssets = assets.filter(a => getAssetTypeLabel(a.asset_type) === type.name);
-                  const totalInvested = typeAssets.reduce((sum, a) => sum + a.initial_investment, 0);
-                  const totalReturn = type.value - totalInvested;
-                  const returnPercentage = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+                {distributionDataWithPercentage.map((item, index) => {
+                  if (isSingleType && assets.length > 1) {
+                    // Se está mostrando por asset individual
+                    const asset = assets.find(a => a.id === item.assetId);
+                    if (!asset) return null;
 
-                  return (
-                    <tr key={type.name} className="border-b">
-                      <td className="p-2">{type.name}</td>
-                      <td className="text-right p-2">{typeAssets.length}</td>
-                      <td className="text-right p-2">{formatCurrency(totalInvested)}</td>
-                      <td className="text-right p-2">{formatCurrency(type.value)}</td>
-                      <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(totalReturn)}
-                      </td>
-                      <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {returnPercentage.toFixed(2)}%
-                      </td>
-                    </tr>
-                  );
+                    const totalReturn = asset.current_value - asset.initial_investment;
+                    const returnPercentage = asset.initial_investment > 0 ? (totalReturn / asset.initial_investment) * 100 : 0;
+
+                    return (
+                      <tr key={asset.id} className="border-b">
+                        <td className="p-2">{asset.name}</td>
+                        <td className="text-right p-2">1</td>
+                        <td className="text-right p-2">{formatCurrency(asset.initial_investment)}</td>
+                        <td className="text-right p-2">{formatCurrency(asset.current_value)}</td>
+                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(totalReturn)}
+                        </td>
+                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {returnPercentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  } else {
+                    // Se está mostrando por tipo
+                    const typeAssets = assets.filter(a => getAssetTypeLabel(a.asset_type) === item.name);
+                    const totalInvested = typeAssets.reduce((sum, a) => sum + a.initial_investment, 0);
+                    const totalReturn = item.value - totalInvested;
+                    const returnPercentage = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+
+                    return (
+                      <tr key={item.name} className="border-b">
+                        <td className="p-2">{item.name}</td>
+                        <td className="text-right p-2">{typeAssets.length}</td>
+                        <td className="text-right p-2">{formatCurrency(totalInvested)}</td>
+                        <td className="text-right p-2">{formatCurrency(item.value)}</td>
+                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(totalReturn)}
+                        </td>
+                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {returnPercentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  }
                 })}
               </tbody>
             </table>

@@ -1,6 +1,6 @@
-import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
-import { FinancialDataRepository } from "../financial-data-repository"
+import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { FinancialDataRepository } from "../financial-data-repository";
 
 export class PrismaFinancialDataRepository implements FinancialDataRepository {
   async findByUserAndPeriod(userId: string, month: string, year: number) {
@@ -9,16 +9,16 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
         user_id_month_year: {
           user_id: userId,
           month,
-          year
-        }
+          year,
+        },
       },
       include: {
         transactions: true,
-        investments: true
-      }
-    })
+        investments: true,
+      },
+    });
 
-    return financialData
+    return financialData;
   }
 
   async create(data: Prisma.FinancialDataUncheckedCreateInput) {
@@ -26,11 +26,11 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       data,
       include: {
         transactions: true,
-        investments: true
-      }
-    })
+        investments: true,
+      },
+    });
 
-    return financialData
+    return financialData;
   }
 
   async update(id: string, data: Prisma.FinancialDataUpdateInput) {
@@ -39,59 +39,56 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       data,
       include: {
         transactions: true,
-        investments: true
-      }
-    })
+        investments: true,
+      },
+    });
 
-    return financialData
+    return financialData;
   }
 
   async findManyByUser(userId: string) {
     const financialData = await prisma.financialData.findMany({
       where: {
-        user_id: userId
+        user_id: userId,
       },
       include: {
         transactions: true,
-        investments: true
+        investments: true,
       },
-      orderBy: [
-        { year: 'desc' },
-        { month: 'desc' }
-      ]
-    })
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+    });
 
-    return financialData
+    return financialData;
   }
 
   async updateCreditCardSubtotal(id: string, creditCardSubtotal: number) {
     // Buscar dados atuais
     const currentData = await prisma.financialData.findUnique({
-      where: { id }
-    })
+      where: { id },
+    });
 
     if (!currentData) {
-      throw new Error('FinancialData not found')
+      throw new Error("FinancialData not found");
     }
+    const newTotalExpenses =
+      Number(currentData.expense_subtotal) +
+      creditCardSubtotal +
+      Number(currentData.tax_subtotal);
 
-    // Calcular novo total de gastos
-    const newTotalExpenses = Number(currentData.expense_subtotal) + creditCardSubtotal + Number(currentData.tax_subtotal)
-
-    // Atualizar subtotal de cartão e total de gastos
     const updatedFinancialData = await prisma.financialData.update({
       where: { id },
       data: {
         credit_card_subtotal: creditCardSubtotal,
-        total_expenses: newTotalExpenses
-      }
-    })
+        total_expenses: newTotalExpenses,
+      },
+    });
 
-    return updatedFinancialData
+    return updatedFinancialData;
   }
 
   async delete(id: string) {
     await prisma.financialData.delete({
-      where: { id }
-    })
+      where: { id },
+    });
   }
 }

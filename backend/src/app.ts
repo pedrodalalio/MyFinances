@@ -10,6 +10,7 @@ import { expensesRoutes } from "./http/controllers/expenses/routes";
 import { monthlyInvestmentsRoutes } from "./http/controllers/monthly-investments/routes";
 import { taxesRoutes } from "./http/controllers/taxes/routes";
 import { investmentPortfolioRoutes } from "./http/controllers/investment-portfolio/routes";
+import { dashboardRoutes } from "./http/controllers/dashboard/routes";
 import { ZodError } from "zod";
 import { env } from "./env";
 import fastifyJwt from "@fastify/jwt";
@@ -32,7 +33,7 @@ app.register(fastifyJwt, {
     signed: false,
   },
   sign: {
-    expiresIn: "10m",
+    expiresIn: "1h",
   },
 });
 
@@ -47,6 +48,7 @@ app.register(expensesRoutes);
 app.register(monthlyInvestmentsRoutes);
 app.register(taxesRoutes);
 app.register(investmentPortfolioRoutes);
+app.register(dashboardRoutes);
 
 app.setErrorHandler((error, _, reply) => {
   if (error instanceof ZodError) {

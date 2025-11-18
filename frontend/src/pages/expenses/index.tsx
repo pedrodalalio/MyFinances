@@ -67,10 +67,10 @@ const paymentMethods = [
 ];
 
 const formatCurrency = (value: number): string => {
-  return (Math.round(value * 100) / 100).toLocaleString("pt-BR", {
+  return new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+    maximumFractionDigits: 2,
+  }).format(value);
 };
 
 const formatDate = (dateString: string): string => {
@@ -96,7 +96,7 @@ interface Expense {
   id: string;
   name: string;
   description?: string;
-  amount: number;
+  amount: string;
   payment_method: string;
   category?: string;
   month: string;
@@ -128,7 +128,7 @@ const ExpensesPage = () => {
       category: "",
       month: selectedMonth.toString().padStart(2, "0"),
       year: selectedYear.toString(),
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
     },
   });
 
@@ -180,12 +180,12 @@ const ExpensesPage = () => {
     form.reset({
       name: expense.name,
       description: expense.description || "",
-      amount: expense.amount.toFixed(2),
+      amount: parseFloat(expense.amount).toFixed(2),
       payment_method: expense.payment_method,
       category: expense.category || "",
       month: expense.month,
       year: expense.year.toString(),
-      date: new Date(expense.date).toISOString().split('T')[0],
+      date: new Date(expense.date).toISOString().split("T")[0],
     });
     setIsDialogOpen(true);
   };
@@ -228,11 +228,14 @@ const ExpensesPage = () => {
   };
 
   const getPaymentMethodLabel = (method: string) => {
-    const paymentMethod = paymentMethods.find(p => p.value === method);
+    const paymentMethod = paymentMethods.find((p) => p.value === method);
     return paymentMethod ? paymentMethod.label : method;
   };
 
-  const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const totalExpenses = expenses.reduce(
+    (sum, expense) => sum + parseFloat(expense.amount),
+    0,
+  );
 
   return (
     <div className="space-y-6">
@@ -244,20 +247,17 @@ const ExpensesPage = () => {
           </p>
         </div>
 
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setEditingExpense(null);
-            form.reset();
-          }
-        }}>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
               Novo Gasto
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent
+            className="sm:max-w-[425px]"
+            onInteractOutside={(e) => e.preventDefault()}
+          >
             <DialogHeader>
               <DialogTitle>
                 {editingExpense ? "Editar Gasto" : "Adicionar Gasto"}
@@ -265,13 +265,15 @@ const ExpensesPage = () => {
               <DialogDescription>
                 {editingExpense
                   ? "Edite as informações do seu gasto."
-                  : "Adicione um novo gasto simples."
-                }
+                  : "Adicione um novo gasto simples."}
               </DialogDescription>
             </DialogHeader>
 
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form
+                onSubmit={form.handleSubmit(onSubmit)}
+                className="space-y-4"
+              >
                 <FormField
                   control={form.control}
                   name="name"
@@ -279,7 +281,10 @@ const ExpensesPage = () => {
                     <FormItem>
                       <FormLabel>Nome do Gasto</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Almoço, Transporte..." {...field} />
+                        <Input
+                          placeholder="Ex: Almoço, Transporte..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -329,7 +334,10 @@ const ExpensesPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Forma de Pagamento</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione" />
@@ -337,7 +345,10 @@ const ExpensesPage = () => {
                           </FormControl>
                           <SelectContent>
                             {paymentMethods.map((method) => (
-                              <SelectItem key={method.value} value={method.value}>
+                              <SelectItem
+                                key={method.value}
+                                value={method.value}
+                              >
                                 {method.label}
                               </SelectItem>
                             ))}
@@ -356,7 +367,10 @@ const ExpensesPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Mês</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione" />
@@ -381,7 +395,10 @@ const ExpensesPage = () => {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Ano</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione" />
@@ -407,10 +424,7 @@ const ExpensesPage = () => {
                       <FormItem>
                         <FormLabel>Data</FormLabel>
                         <FormControl>
-                          <Input
-                            type="date"
-                            {...field}
-                          />
+                          <Input type="date" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -425,7 +439,10 @@ const ExpensesPage = () => {
                     <FormItem>
                       <FormLabel>Categoria (opcional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ex: Alimentação, Transporte..." {...field} />
+                        <Input
+                          placeholder="Ex: Alimentação, Transporte..."
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -439,16 +456,28 @@ const ExpensesPage = () => {
                     onClick={() => {
                       setIsDialogOpen(false);
                       setEditingExpense(null);
-                      form.reset();
+                      form.reset({
+                        name: "",
+                        description: "",
+                        amount: "",
+                        payment_method: "PIX",
+                        category: "",
+                        month: selectedMonth.toString().padStart(2, "0"),
+                        year: selectedYear.toString(),
+                        date: new Date().toISOString().split("T")[0],
+                      });
                     }}
                   >
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={loading}>
                     {loading
-                      ? (editingExpense ? "Atualizando..." : "Salvando...")
-                      : (editingExpense ? "Atualizar" : "Salvar")
-                    }
+                      ? editingExpense
+                        ? "Atualizando..."
+                        : "Salvando..."
+                      : editingExpense
+                        ? "Atualizar"
+                        : "Salvar"}
                   </Button>
                 </div>
               </form>
@@ -469,7 +498,10 @@ const ExpensesPage = () => {
           <div className="flex items-center gap-4">
             <div>
               <label className="text-sm font-medium">Mês:</label>
-              <Select value={selectedMonth.toString().padStart(2, "0")} onValueChange={(value) => setSelectedMonth(parseInt(value))}>
+              <Select
+                value={selectedMonth.toString().padStart(2, "0")}
+                onValueChange={(value) => setSelectedMonth(parseInt(value))}
+              >
                 <SelectTrigger className="w-32">
                   <SelectValue />
                 </SelectTrigger>
@@ -484,7 +516,10 @@ const ExpensesPage = () => {
             </div>
             <div>
               <label className="text-sm font-medium">Ano:</label>
-              <Select value={selectedYear.toString()} onValueChange={(value) => setSelectedYear(parseInt(value))}>
+              <Select
+                value={selectedYear.toString()}
+                onValueChange={(value) => setSelectedYear(parseInt(value))}
+              >
                 <SelectTrigger className="w-24">
                   <SelectValue />
                 </SelectTrigger>
@@ -499,7 +534,10 @@ const ExpensesPage = () => {
             </div>
             <div className="ml-auto">
               <p className="text-sm text-muted-foreground">
-                Total: <span className="font-semibold">R$ {formatCurrency(totalExpenses)}</span>
+                Total:{" "}
+                <span className="font-semibold">
+                  R$ {formatCurrency(totalExpenses)}
+                </span>
               </p>
             </div>
           </div>
@@ -511,9 +549,12 @@ const ExpensesPage = () => {
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Wallet className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum gasto cadastrado</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                Nenhum gasto cadastrado
+              </h3>
               <p className="text-muted-foreground text-center mb-4">
-                Comece adicionando seus gastos simples para acompanhar suas finanças.
+                Comece adicionando seus gastos simples para acompanhar suas
+                finanças.
               </p>
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
@@ -560,7 +601,7 @@ const ExpensesPage = () => {
                   <div>
                     <p className="text-muted-foreground">Valor</p>
                     <p className="font-semibold">
-                      R$ {formatCurrency(expense.amount)}
+                      R$ {formatCurrency(parseFloat(expense.amount))}
                     </p>
                   </div>
                   <div>
@@ -584,7 +625,9 @@ const ExpensesPage = () => {
                   {expense.category && (
                     <Badge variant="secondary">{expense.category}</Badge>
                   )}
-                  <Badge variant="outline">{getPaymentMethodLabel(expense.payment_method)}</Badge>
+                  <Badge variant="outline">
+                    {getPaymentMethodLabel(expense.payment_method)}
+                  </Badge>
                 </div>
               </CardContent>
             </Card>
