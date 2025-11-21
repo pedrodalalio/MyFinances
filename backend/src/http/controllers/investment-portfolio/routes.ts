@@ -10,12 +10,12 @@ import { updateAssetValue } from './update-asset-value'
 export async function investmentPortfolioRoutes(app: FastifyInstance) {
   app.addHook('onRequest', verifyJWT)
 
-  // Portfolio routes
-  app.get('/portfolio', getPortfolio)
+  // CDB routes
+  app.get('/cdbs', getPortfolio)
 
   // Asset routes
-  app.post('/portfolio/assets', createAsset)
-  app.put('/portfolio/assets/:assetId', updateAsset)
-  app.delete('/portfolio/assets/:assetId', deleteAsset)
-  app.patch('/portfolio/assets/:assetId/value', updateAssetValue)
+  app.post('/cdbs/assets', createAsset)
+  app.put('/cdbs/assets/:assetId', updateAsset)
+  app.delete('/cdbs/assets/:assetId', deleteAsset)
+  app.patch('/cdbs/assets/:assetId/value', updateAssetValue)
 }

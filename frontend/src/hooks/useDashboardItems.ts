@@ -31,7 +31,7 @@ const useDashboardItems = (): DashboardItem[] => {
     },
     {
       title: "CDBs",
-      url: "/portfolio",
+      url: "/cdbs",
       icon: PieChart,
     },
     {

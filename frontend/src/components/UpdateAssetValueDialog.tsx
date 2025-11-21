@@ -88,7 +88,7 @@ export const UpdateAssetValueDialog: React.FC<UpdateAssetValueDialogProps> = ({
         notes: values.notes,
       };
 
-      await api.patch(`/portfolio/assets/${asset.id}/value`, requestBody);
+      await api.patch(`/cdbs/assets/${asset.id}/value`, requestBody);
       onSuccess();
       onClose();
       form.reset();

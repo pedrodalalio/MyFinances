@@ -14,7 +14,7 @@ const Client = lazy(() => import("./pages/clients/index.tsx"));
 const Cards = lazy(() => import("./pages/cards/index.tsx"));
 const Expenses = lazy(() => import("./pages/expenses/index.tsx"));
 const Investments = lazy(() => import("./pages/investments/index.tsx"));
-const Portfolio = lazy(() => import("./pages/portfolio/index.tsx"));
+const Portfolio = lazy(() => import("./pages/cdbs/index.tsx"));
 const Taxes = lazy(() => import("./pages/taxes/index.tsx"));
 const MonthlyTracking = lazy(() => import("./pages/monthly-tracking/index.tsx"));
 const Settings = lazy(() => import("./pages/settings/index.tsx"));
@@ -112,7 +112,7 @@ const routes = [
     ],
   },
   {
-    path: "portfolio",
+    path: "cdbs",
     element: (
       <AuthGuard>
         <DashboardLayout />

@@ -171,7 +171,7 @@ const PortfolioPage = () => {
 
   const loadPortfolio = async () => {
     try {
-      const response = await api.get("/portfolio");
+      const response = await api.get("/cdbs");
       setPortfolio(response.data.portfolio);
     } catch (error) {
       console.error("Erro ao carregar portfolio:", error);
@@ -204,7 +204,7 @@ const PortfolioPage = () => {
         notes: values.notes,
       };
 
-      await api.post("/portfolio/assets", requestBody);
+      await api.post("/cdbs/assets", requestBody);
       setIsDialogOpen(false);
       form.reset();
       loadPortfolio();
@@ -243,7 +243,7 @@ const PortfolioPage = () => {
         notes: values.notes,
       };
 
-      await api.put(`/portfolio/assets/${editingAsset.id}`, requestBody);
+      await api.put(`/cdbs/assets/${editingAsset.id}`, requestBody);
       setIsDialogOpen(false);
       setEditingAsset(null);
       form.reset();
@@ -265,7 +265,7 @@ const PortfolioPage = () => {
 
   const deleteAsset = async (id: string) => {
     try {
-      await api.delete(`/portfolio/assets/${id}`);
+      await api.delete(`/cdbs/assets/${id}`);
       loadPortfolio();
     } catch (error) {
       console.error("Erro ao deletar ativo:", error);

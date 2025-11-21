@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
   LineChart,
   Line,
+  Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -71,6 +72,7 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
       // Se todos são do mesmo tipo, mostra distribuição por asset individual
       return assets.map((asset, index) => ({
         name: asset.name.length > 20 ? asset.name.substring(0, 20) + '...' : asset.name,
+        fullName: asset.name, // Armazena o nome completo para o tooltip
         value: asset.current_value,
         percentage: 0, // Será calculado após termos o total
         assetId: asset.id // Adiciona ID para evitar problemas de mapeamento
@@ -87,6 +89,7 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
 
       return Array.from(typeMap.entries()).map(([name, value]) => ({
         name,
+        fullName: name, // Para tipos, nome e fullName são iguais
         value,
         percentage: 0 // Será calculado após termos o total
       }));
@@ -168,10 +171,10 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-background border border-border rounded-lg p-2 shadow-md">
-          <p className="font-medium">{data.name}</p>
-          <p>{formatCurrency(data.value)}</p>
-          <p>{data.percentage.toFixed(1)}%</p>
+        <div className="bg-background border border-border rounded-lg p-3 shadow-md max-w-xs">
+          <p className="font-medium text-sm break-words">{data.fullName || data.name}</p>
+          <p className="text-sm">{formatCurrency(data.value)}</p>
+          <p className="text-sm text-muted-foreground">{data.percentage.toFixed(1)}%</p>
         </div>
       );
     }
@@ -220,14 +223,14 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={400}>
               <PieChart>
                 <Pie
                   data={distributionDataWithPercentage}
                   cx="50%"
-                  cy="50%"
+                  cy="40%"
                   labelLine={false}
-                  label={({ name, percentage }) => percentage > 5 ? `${name} (${percentage.toFixed(1)}%)` : ''}
+                  label={({ name, percentage }) => percentage > 5 ? `${percentage.toFixed(1)}%` : ''}
                   outerRadius={80}
                   fill="#8884d8"
                   dataKey="value"
@@ -237,6 +240,19 @@ export const PortfolioCharts: React.FC<PortfolioChartsProps> = ({ assets }) => {
                   ))}
                 </Pie>
                 <Tooltip content={<PieTooltip />} />
+                <Legend
+                  verticalAlign="bottom"
+                  height={80}
+                  formatter={(value: string, entry: any) => {
+                    const data = distributionDataWithPercentage.find(item => item.name === value);
+                    return `${data?.fullName || value}`;
+                  }}
+                  wrapperStyle={{
+                    paddingTop: "20px",
+                    fontSize: "12px",
+                    lineHeight: "16px"
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </CardContent>
