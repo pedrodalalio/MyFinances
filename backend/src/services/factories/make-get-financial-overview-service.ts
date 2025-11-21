@@ -3,7 +3,7 @@ import { PrismaSalaryProfilesRepository } from "@/repositories/prisma/prisma-sal
 import { PrismaCreditCardInstallmentsRepository } from "@/repositories/prisma/prisma-credit-card-installments-repository"
 import { PrismaCreditCardPurchasesRepository } from "@/repositories/prisma/prisma-credit-card-purchases-repository"
 import { PrismaExpenseRepository } from "@/repositories/prisma/prisma-expense-repository"
-import { PrismaMonthlyInvestmentRepository } from "@/repositories/prisma/prisma-monthly-investment-repository"
+import { PrismaInvestmentRepository } from "@/repositories/prisma/prisma-investment-repository"
 import { PrismaTaxRepository } from "@/repositories/prisma/prisma-tax-repository"
 import { GetFinancialOverviewService } from "../get-financial-overview"
 import { TransferBalanceToNextMonthService } from "../transfer-balance-to-next-month"
@@ -14,7 +14,7 @@ export function makeGetFinancialOverviewService() {
   const creditCardInstallmentsRepository = new PrismaCreditCardInstallmentsRepository()
   const creditCardPurchasesRepository = new PrismaCreditCardPurchasesRepository()
   const expenseRepository = new PrismaExpenseRepository()
-  const monthlyInvestmentRepository = new PrismaMonthlyInvestmentRepository()
+  const monthlyInvestmentRepository = new PrismaInvestmentRepository()
   const taxRepository = new PrismaTaxRepository()
 
   const transferBalanceService = new TransferBalanceToNextMonthService(financialDataRepository)

@@ -1,21 +1,26 @@
-import { MonthlyInvestmentRepository } from '@/repositories/monthly-investment-repository'
+import { InvestmentRepository } from '@/repositories/investment-repository'
 import { InvestmentType } from '@prisma/client'
-import { ResourceNotFoundError } from './errors/resource-not-found-error'
 
-interface UpdateMonthlyInvestmentServiceRequest {
-  investmentId: string
-  name?: string
+interface CreateInvestmentServiceRequest {
+  name: string
   description?: string
-  amount?: number
-  investmentType?: InvestmentType
+  amount: number
+  grossYield?: number
+  investmentType: InvestmentType
   category?: string
-  month?: string
-  year?: number
+  month: string
+  year: number
   date?: Date
+  purchaseDate?: Date
+  maturityDate?: Date
+  interestRate?: number
+  quantity?: number
+  broker?: string
+  notes?: string
   userId: string
 }
 
-interface UpdateMonthlyInvestmentServiceResponse {
+interface CreateInvestmentServiceResponse {
   investment: {
     id: string
     name: string
@@ -29,39 +34,45 @@ interface UpdateMonthlyInvestmentServiceResponse {
   }
 }
 
-export class UpdateMonthlyInvestmentService {
+export class CreateInvestmentService {
   constructor(
-    private monthlyInvestmentRepository: MonthlyInvestmentRepository
+    private investmentRepository: InvestmentRepository
   ) {}
 
   async execute({
-    investmentId,
     name,
     description,
     amount,
+    grossYield,
     investmentType,
     category,
     month,
     year,
     date,
+    purchaseDate,
+    maturityDate,
+    interestRate,
+    quantity,
+    broker,
+    notes,
     userId
-  }: UpdateMonthlyInvestmentServiceRequest): Promise<UpdateMonthlyInvestmentServiceResponse> {
-    const investmentExists = await this.monthlyInvestmentRepository.findById(investmentId)
-
-    if (!investmentExists) {
-      throw new ResourceNotFoundError()
-    }
-
-    const investment = await this.monthlyInvestmentRepository.update({
-      id: investmentId,
+  }: CreateInvestmentServiceRequest): Promise<CreateInvestmentServiceResponse> {
+    const investment = await this.investmentRepository.create({
       name,
       description,
       amount,
+      grossYield,
       investmentType,
       category,
       month,
       year,
       date,
+      purchaseDate,
+      maturityDate,
+      interestRate,
+      quantity,
+      broker,
+      notes,
       userId
     })
 

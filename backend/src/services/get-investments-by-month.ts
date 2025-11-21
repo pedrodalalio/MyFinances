@@ -1,13 +1,13 @@
-import { MonthlyInvestmentRepository } from '@/repositories/monthly-investment-repository'
+import { InvestmentRepository } from '@/repositories/investment-repository'
 import { InvestmentType } from '@prisma/client'
 
-interface GetMonthlyInvestmentsByMonthServiceRequest {
+interface GetInvestmentsByMonthServiceRequest {
   userId: string
   month: string
   year: number
 }
 
-interface GetMonthlyInvestmentsByMonthServiceResponse {
+interface GetInvestmentsByMonthServiceResponse {
   investments: {
     id: string
     name: string
@@ -21,17 +21,17 @@ interface GetMonthlyInvestmentsByMonthServiceResponse {
   }[]
 }
 
-export class GetMonthlyInvestmentsByMonthService {
+export class GetInvestmentsByMonthService {
   constructor(
-    private monthlyInvestmentRepository: MonthlyInvestmentRepository
+    private investmentRepository: InvestmentRepository
   ) {}
 
   async execute({
     userId,
     month,
     year
-  }: GetMonthlyInvestmentsByMonthServiceRequest): Promise<GetMonthlyInvestmentsByMonthServiceResponse> {
-    const investments = await this.monthlyInvestmentRepository.findByMonthAndUser(userId, month, year)
+  }: GetInvestmentsByMonthServiceRequest): Promise<GetInvestmentsByMonthServiceResponse> {
+    const investments = await this.investmentRepository.findByMonthAndUser(userId, month, year)
 
     return {
       investments: investments.map(investment => ({

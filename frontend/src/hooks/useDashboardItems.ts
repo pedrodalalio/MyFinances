@@ -30,11 +30,6 @@ const useDashboardItems = (): DashboardItem[] => {
       icon: TrendingUp,
     },
     {
-      title: "CDBs",
-      url: "/cdbs",
-      icon: PieChart,
-    },
-    {
       title: "Impostos",
       url: "/taxes",
       icon: FileText,

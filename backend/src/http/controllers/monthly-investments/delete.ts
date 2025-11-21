@@ -1,9 +1,9 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { makeDeleteMonthlyInvestmentService } from '@/services/factories/make-delete-monthly-investment-service'
+import { makeDeleteInvestmentService } from '@/services/factories/make-delete-investment-service'
 import { ResourceNotFoundError } from '@/services/errors/resource-not-found-error'
 
-export async function deleteMonthlyInvestment(request: FastifyRequest, reply: FastifyReply) {
+export async function deleteInvestment(request: FastifyRequest, reply: FastifyReply) {
   const deleteMonthlyInvestmentParamsSchema = z.object({
     id: z.string().uuid()
   })
@@ -11,9 +11,9 @@ export async function deleteMonthlyInvestment(request: FastifyRequest, reply: Fa
   const { id } = deleteMonthlyInvestmentParamsSchema.parse(request.params)
 
   try {
-    const deleteMonthlyInvestmentService = makeDeleteMonthlyInvestmentService()
+    const deleteInvestmentService = makeDeleteInvestmentService()
 
-    await deleteMonthlyInvestmentService.execute({
+    await deleteInvestmentService.execute({
       investmentId: id,
       userId: request.user.sub
     })

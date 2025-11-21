@@ -1,5 +1,5 @@
 import { ExpenseRepository } from '@/repositories/expense-repository'
-import { MonthlyInvestmentRepository } from '@/repositories/monthly-investment-repository'
+import { InvestmentRepository } from '@/repositories/investment-repository'
 import { SalaryProfilesRepository } from '@/repositories/salary-profiles-repository'
 import { GetMonthlyExpensesService } from './get-monthly-expenses'
 
@@ -31,7 +31,7 @@ interface MonthlyFlowResponse {
 export class MonthlyFlowService {
   constructor(
     private expenseRepository: ExpenseRepository,
-    private monthlyInvestmentRepository: MonthlyInvestmentRepository,
+    private investmentRepository: InvestmentRepository,
     private salaryRepository: SalaryProfilesRepository,
     private getMonthlyExpensesService: GetMonthlyExpensesService,
   ) {}
@@ -59,7 +59,7 @@ export class MonthlyFlowService {
       const monthlyCreditCard = creditCardData.total
 
       // Get monthly investments
-      const investments = await this.monthlyInvestmentRepository.findByMonthAndUser(userId, monthStr, year)
+      const investments = await this.investmentRepository.findByMonthAndUser(userId, monthStr, year)
       const monthlyInvestments = investments.reduce((sum, investment) => sum + Number(investment.amount), 0)
 
       // Calculate balance for the month

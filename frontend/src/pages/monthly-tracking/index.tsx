@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, Calendar, CreditCard, Repeat, Edit, Receipt, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  CreditCard,
+  Repeat,
+  Edit,
+  Receipt,
+  TrendingUp,
+} from "lucide-react";
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -50,7 +53,7 @@ const months = [
 const formatCurrency = (value: number): string => {
   return (Math.round(value * 100) / 100).toLocaleString("pt-BR", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
 };
 
@@ -60,7 +63,7 @@ const getPaymentMethodLabel = (method: string): string => {
     CASH: "Dinheiro",
     DEBIT_CARD: "Cartão de Débito",
     BANK_TRANSFER: "Transferência",
-    OTHER: "Outros"
+    OTHER: "Outros",
   };
   return labels[method] || method;
 };
@@ -75,7 +78,7 @@ const getInvestmentTypeLabel = (type: string): string => {
     LCI_LCA: "LCI/LCA",
     DEBENTURES: "Debêntures",
     TREASURY: "Tesouro",
-    OTHER: "Outros"
+    OTHER: "Outros",
   };
   return labels[type] || type;
 };
@@ -84,16 +87,18 @@ interface MonthlyExpense {
   id: string;
   name: string;
   amount: number;
-  type: 'installment' | 'recurring';
+  type: "installment" | "recurring";
   current_installment?: number;
   total_installments?: number;
   purchase_id?: string;
 }
 
 const editInstallmentSchema = z.object({
-  installment_amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Valor deve ser um número positivo",
-  }),
+  installment_amount: z
+    .string()
+    .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: "Valor deve ser um número positivo",
+    }),
 });
 
 type EditInstallmentFormValues = z.infer<typeof editInstallmentSchema>;
@@ -149,13 +154,18 @@ const MonthlyTrackingPage = () => {
     };
   });
 
-  const [expensesData, setExpensesData] = useState<MonthlyExpensesData | null>(null);
-  const [cashExpensesData, setCashExpensesData] = useState<CashExpensesData | null>(null);
-  const [investmentsData, setInvestmentsData] = useState<InvestmentsData | null>(null);
+  const [expensesData, setExpensesData] = useState<MonthlyExpensesData | null>(
+    null,
+  );
+  const [cashExpensesData, setCashExpensesData] =
+    useState<CashExpensesData | null>(null);
+  const [investmentsData, setInvestmentsData] =
+    useState<InvestmentsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCashExpenses, setLoadingCashExpenses] = useState(false);
   const [loadingInvestments, setLoadingInvestments] = useState(false);
-  const [editingInstallment, setEditingInstallment] = useState<MonthlyExpense | null>(null);
+  const [editingInstallment, setEditingInstallment] =
+    useState<MonthlyExpense | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [overviewKey, setOverviewKey] = useState(0); // Para forçar re-render do FinancialOverview
 
@@ -176,7 +186,9 @@ const MonthlyTrackingPage = () => {
   const loadMonthlyExpenses = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/credit-cards/monthly-expenses?month=${currentDate.month}&year=${currentDate.year}`);
+      const response = await api.get(
+        `/credit-cards/monthly-expenses?month=${currentDate.month}&year=${currentDate.year}`,
+      );
       setExpensesData(response.data);
     } catch (error) {
       console.error("Erro ao carregar gastos mensais:", error);
@@ -188,9 +200,14 @@ const MonthlyTrackingPage = () => {
   const loadCashExpenses = async () => {
     setLoadingCashExpenses(true);
     try {
-      const response = await api.get(`/expenses/${currentDate.month}/${currentDate.year}`);
+      const response = await api.get(
+        `/expenses/${currentDate.month}/${currentDate.year}`,
+      );
       const data = response.data;
-      const total = data.expenses.reduce((sum: number, expense: CashExpense) => sum + Number(expense.amount), 0);
+      const total = data.expenses.reduce(
+        (sum: number, expense: CashExpense) => sum + Number(expense.amount),
+        0,
+      );
       setCashExpensesData({
         expenses: data.expenses,
         total,
@@ -207,9 +224,15 @@ const MonthlyTrackingPage = () => {
   const loadInvestments = async () => {
     setLoadingInvestments(true);
     try {
-      const response = await api.get(`/monthly-investments/${currentDate.month}/${currentDate.year}`);
+      const response = await api.get(
+        `/monthly-investments/${currentDate.month}/${currentDate.year}`,
+      );
       const data = response.data;
-      const total = data.investments.reduce((sum: number, investment: Investment) => sum + Number(investment.amount), 0);
+      const total = data.investments.reduce(
+        (sum: number, investment: Investment) =>
+          sum + Number(investment.amount),
+        0,
+      );
       setInvestmentsData({
         investments: data.investments,
         total,
@@ -223,11 +246,11 @@ const MonthlyTrackingPage = () => {
     }
   };
 
-  const navigateMonth = (direction: 'prev' | 'next') => {
+  const navigateMonth = (direction: "prev" | "next") => {
     const currentMonth = parseInt(currentDate.month);
     const currentYear = currentDate.year;
 
-    if (direction === 'prev') {
+    if (direction === "prev") {
       if (currentMonth === 1) {
         setCurrentDate({
           month: "12",
@@ -254,10 +277,11 @@ const MonthlyTrackingPage = () => {
     }
   };
 
-  const currentMonthLabel = months.find(m => m.value === currentDate.month)?.label || "";
+  const currentMonthLabel =
+    months.find((m) => m.value === currentDate.month)?.label || "";
 
   const openEditInstallment = (expense: MonthlyExpense) => {
-    if (expense.type === 'installment') {
+    if (expense.type === "installment") {
       setEditingInstallment(expense);
       editForm.reset({
         installment_amount: expense.amount.toFixed(2),
@@ -276,25 +300,28 @@ const MonthlyTrackingPage = () => {
 
       // Atualizar o valor localmente sem recarregar tudo
       if (expensesData) {
-        const updatedExpenses = expensesData.expenses.map(expense =>
+        const updatedExpenses = expensesData.expenses.map((expense) =>
           expense.id === editingInstallment.id
             ? { ...expense, amount: parseFloat(values.installment_amount) }
-            : expense
+            : expense,
         );
 
-        const newTotal = updatedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+        const newTotal = updatedExpenses.reduce(
+          (sum, expense) => sum + expense.amount,
+          0,
+        );
 
         setExpensesData({
           ...expensesData,
           expenses: updatedExpenses,
-          total: newTotal
+          total: newTotal,
         });
       }
 
       setIsEditDialogOpen(false);
       setEditingInstallment(null);
       editForm.reset();
-      setOverviewKey(prev => prev + 1); // Força o FinancialOverview a recarregar
+      setOverviewKey((prev) => prev + 1); // Força o FinancialOverview a recarregar
     } catch (error) {
       console.error("Erro ao atualizar parcela:", error);
     }
@@ -315,7 +342,7 @@ const MonthlyTrackingPage = () => {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigateMonth('prev')}
+            onClick={() => navigateMonth("prev")}
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -325,7 +352,7 @@ const MonthlyTrackingPage = () => {
           <Button
             variant="outline"
             size="icon"
-            onClick={() => navigateMonth('next')}
+            onClick={() => navigateMonth("next")}
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -333,7 +360,11 @@ const MonthlyTrackingPage = () => {
       </div>
 
       {/* Overview Financeiro */}
-      <FinancialOverview key={overviewKey} month={currentDate.month} year={currentDate.year} />
+      <FinancialOverview
+        key={overviewKey}
+        month={currentDate.month}
+        year={currentDate.year}
+      />
 
       {/* Gastos do Cartão de Crédito */}
       <Card>
@@ -361,7 +392,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">Parcelas</span>
                   </div>
                   <span className="font-semibold">
-                    {expensesData.expenses.filter(e => e.type === 'installment').length}
+                    {
+                      expensesData.expenses.filter(
+                        (e) => e.type === "installment",
+                      ).length
+                    }
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -370,7 +405,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">Recorrentes</span>
                   </div>
                   <span className="font-semibold">
-                    {expensesData.expenses.filter(e => e.type === 'recurring').length}
+                    {
+                      expensesData.expenses.filter(
+                        (e) => e.type === "recurring",
+                      ).length
+                    }
                   </span>
                 </div>
               </div>
@@ -384,17 +423,23 @@ const MonthlyTrackingPage = () => {
                 ) : expensesData.expenses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum gasto encontrado</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Nenhum gasto encontrado
+                    </h3>
                     <p className="text-muted-foreground text-center">
-                      Não há gastos de cartão de crédito para {currentMonthLabel} de {currentDate.year}.
+                      Não há gastos de cartão de crédito para{" "}
+                      {currentMonthLabel} de {currentDate.year}.
                     </p>
                   </div>
                 ) : (
                   expensesData.expenses.map((expense) => (
-                    <div key={expense.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div
+                      key={expense.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          {expense.type === 'recurring' ? (
+                          {expense.type === "recurring" ? (
                             <Repeat className="h-4 w-4 text-blue-600" />
                           ) : (
                             <CreditCard className="h-4 w-4 text-gray-600" />
@@ -402,11 +447,14 @@ const MonthlyTrackingPage = () => {
                           <span className="font-medium">{expense.name}</span>
                         </div>
                         <div>
-                          {expense.type === 'recurring' ? (
-                            <Badge variant="default" className="text-xs">Recorrente</Badge>
+                          {expense.type === "recurring" ? (
+                            <Badge variant="default" className="text-xs">
+                              Recorrente
+                            </Badge>
                           ) : (
                             <Badge variant="secondary" className="text-xs">
-                              {expense.current_installment}/{expense.total_installments}
+                              {expense.current_installment}/
+                              {expense.total_installments}
                             </Badge>
                           )}
                         </div>
@@ -415,7 +463,7 @@ const MonthlyTrackingPage = () => {
                         <div className="font-semibold">
                           R$ {formatCurrency(expense.amount)}
                         </div>
-                        {expense.type === 'installment' && (
+                        {expense.type === "installment" && (
                           <Button
                             variant="ghost"
                             size="icon"
@@ -470,7 +518,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">PIX</span>
                   </div>
                   <span className="font-semibold">
-                    {cashExpensesData.expenses.filter(e => e.payment_method === 'PIX').length}
+                    {
+                      cashExpensesData.expenses.filter(
+                        (e) => e.payment_method === "PIX",
+                      ).length
+                    }
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -478,7 +530,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">Outros</span>
                   </div>
                   <span className="font-semibold">
-                    {cashExpensesData.expenses.filter(e => e.payment_method !== 'PIX').length}
+                    {
+                      cashExpensesData.expenses.filter(
+                        (e) => e.payment_method !== "PIX",
+                      ).length
+                    }
                   </span>
                 </div>
               </div>
@@ -492,21 +548,29 @@ const MonthlyTrackingPage = () => {
                 ) : cashExpensesData.expenses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     <Receipt className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum gasto encontrado</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Nenhum gasto encontrado
+                    </h3>
                     <p className="text-muted-foreground text-center">
-                      Não há gastos à vista para {currentMonthLabel} de {currentDate.year}.
+                      Não há gastos à vista para {currentMonthLabel} de{" "}
+                      {currentDate.year}.
                     </p>
                   </div>
                 ) : (
                   cashExpensesData.expenses.map((expense) => (
-                    <div key={expense.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div
+                      key={expense.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
                           <Receipt className="h-4 w-4 text-green-600" />
                           <div>
                             <span className="font-medium">{expense.name}</span>
                             {expense.description && (
-                              <p className="text-xs text-muted-foreground">{expense.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {expense.description}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -521,7 +585,7 @@ const MonthlyTrackingPage = () => {
                           R$ {formatCurrency(Number(expense.amount))}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(expense.date).toLocaleDateString('pt-BR')}
+                          {new Date(expense.date).toLocaleDateString("pt-BR")}
                         </div>
                       </div>
                     </div>
@@ -567,7 +631,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">Ações</span>
                   </div>
                   <span className="font-semibold">
-                    {investmentsData.investments.filter(i => i.investment_type === 'STOCKS').length}
+                    {
+                      investmentsData.investments.filter(
+                        (i) => i.investment_type === "STOCKS",
+                      ).length
+                    }
                   </span>
                 </div>
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -575,7 +643,11 @@ const MonthlyTrackingPage = () => {
                     <span className="font-medium">Outros</span>
                   </div>
                   <span className="font-semibold">
-                    {investmentsData.investments.filter(i => i.investment_type !== 'STOCKS').length}
+                    {
+                      investmentsData.investments.filter(
+                        (i) => i.investment_type !== "STOCKS",
+                      ).length
+                    }
                   </span>
                 </div>
               </div>
@@ -589,21 +661,31 @@ const MonthlyTrackingPage = () => {
                 ) : investmentsData.investments.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     <TrendingUp className="h-12 w-12 text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum investimento encontrado</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      Nenhum investimento encontrado
+                    </h3>
                     <p className="text-muted-foreground text-center">
-                      Não há investimentos para {currentMonthLabel} de {currentDate.year}.
+                      Não há investimentos para {currentMonthLabel} de{" "}
+                      {currentDate.year}.
                     </p>
                   </div>
                 ) : (
                   investmentsData.investments.map((investment) => (
-                    <div key={investment.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div
+                      key={investment.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
                           <TrendingUp className="h-4 w-4 text-green-600" />
                           <div>
-                            <span className="font-medium">{investment.name}</span>
+                            <span className="font-medium">
+                              {investment.name}
+                            </span>
                             {investment.description && (
-                              <p className="text-xs text-muted-foreground">{investment.description}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {investment.description}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -630,7 +712,9 @@ const MonthlyTrackingPage = () => {
                           )}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(investment.date).toLocaleDateString('pt-BR')}
+                          {new Date(investment.date).toLocaleDateString(
+                            "pt-BR",
+                          )}
                         </div>
                       </div>
                     </div>
@@ -643,18 +727,22 @@ const MonthlyTrackingPage = () => {
       </Card>
 
       {/* Modal de Edição de Parcela */}
-      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-        setIsEditDialogOpen(open);
-        if (!open) {
-          setEditingInstallment(null);
-          editForm.reset();
-        }
-      }}>
+      <Dialog
+        open={isEditDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) {
+            setEditingInstallment(null);
+            editForm.reset();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Editar Valor da Parcela</DialogTitle>
             <DialogDescription>
-              Ajuste o valor desta parcela específica. Esta edição não afetará as outras parcelas.
+              Ajuste o valor desta parcela específica. Esta edição não afetará
+              as outras parcelas.
             </DialogDescription>
           </DialogHeader>
 
@@ -666,7 +754,8 @@ const MonthlyTrackingPage = () => {
                   <span className="font-medium">{editingInstallment.name}</span>
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  Parcela {editingInstallment.current_installment} de {editingInstallment.total_installments}
+                  Parcela {editingInstallment.current_installment} de{" "}
+                  {editingInstallment.total_installments}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   Valor atual: R$ {formatCurrency(editingInstallment.amount)}
@@ -674,7 +763,10 @@ const MonthlyTrackingPage = () => {
               </div>
 
               <Form {...editForm}>
-                <form onSubmit={editForm.handleSubmit(onSubmitEdit)} className="space-y-4">
+                <form
+                  onSubmit={editForm.handleSubmit(onSubmitEdit)}
+                  className="space-y-4"
+                >
                   <FormField
                     control={editForm.control}
                     name="installment_amount"
@@ -706,9 +798,7 @@ const MonthlyTrackingPage = () => {
                     >
                       Cancelar
                     </Button>
-                    <Button type="submit">
-                      Salvar
-                    </Button>
+                    <Button type="submit">Salvar</Button>
                   </div>
                 </form>
               </Form>

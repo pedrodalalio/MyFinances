@@ -3,7 +3,7 @@ import { SalaryProfilesRepository } from "@/repositories/salary-profiles-reposit
 import { CreditCardInstallmentsRepository } from "@/repositories/credit-card-installments-repository";
 import { CreditCardPurchasesRepository } from "@/repositories/credit-card-purchases-repository";
 import { ExpenseRepository } from "@/repositories/expense-repository";
-import { MonthlyInvestmentRepository } from "@/repositories/monthly-investment-repository";
+import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { TransferBalanceToNextMonthService } from "./transfer-balance-to-next-month";
 import { ResourceNotFoundError } from "./errors/resource-not-found-error";
@@ -52,7 +52,7 @@ export class GetFinancialOverviewService {
     private creditCardInstallmentsRepository: CreditCardInstallmentsRepository,
     private creditCardPurchasesRepository: CreditCardPurchasesRepository,
     private expenseRepository: ExpenseRepository,
-    private monthlyInvestmentRepository: MonthlyInvestmentRepository,
+    private investmentRepository: InvestmentRepository,
     private taxRepository: TaxRepository,
     private transferBalanceService: TransferBalanceToNextMonthService,
   ) {}
@@ -107,7 +107,7 @@ export class GetFinancialOverviewService {
 
     // Buscar investimentos mensais reais do mês
     const monthlyInvestments =
-      await this.monthlyInvestmentRepository.findByMonthAndUser(
+      await this.investmentRepository.findByMonthAndUser(
         userId,
         month,
         year,

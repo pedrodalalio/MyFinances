@@ -1,6 +1,6 @@
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
-import { makeGetMonthlyInvestmentsByMonthService } from '@/services/factories/make-get-monthly-investments-by-month-service'
+import { makeGetInvestmentsByMonthService } from '@/services/factories/make-get-investments-by-month-service'
 
 export async function getByMonth(request: FastifyRequest, reply: FastifyReply) {
   const getMonthlyInvestmentsByMonthParamsSchema = z.object({
@@ -11,9 +11,9 @@ export async function getByMonth(request: FastifyRequest, reply: FastifyReply) {
   const { month, year } = getMonthlyInvestmentsByMonthParamsSchema.parse(request.params)
 
   try {
-    const getMonthlyInvestmentsByMonthService = makeGetMonthlyInvestmentsByMonthService()
+    const getInvestmentsByMonthService = makeGetInvestmentsByMonthService()
 
-    const { investments } = await getMonthlyInvestmentsByMonthService.execute({
+    const { investments } = await getInvestmentsByMonthService.execute({
       userId: request.user.sub,
       month,
       year

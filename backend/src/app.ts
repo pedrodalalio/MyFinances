@@ -9,7 +9,6 @@ import { salaryRoutes } from "./http/controllers/salary/routes";
 import { expensesRoutes } from "./http/controllers/expenses/routes";
 import { monthlyInvestmentsRoutes } from "./http/controllers/monthly-investments/routes";
 import { taxesRoutes } from "./http/controllers/taxes/routes";
-import { investmentPortfolioRoutes } from "./http/controllers/investment-portfolio/routes";
 import { dashboardRoutes } from "./http/controllers/dashboard/routes";
 import { ZodError } from "zod";
 import { env } from "./env";
@@ -47,7 +46,6 @@ app.register(salaryRoutes);
 app.register(expensesRoutes);
 app.register(monthlyInvestmentsRoutes);
 app.register(taxesRoutes);
-app.register(investmentPortfolioRoutes);
 app.register(dashboardRoutes);
 
 app.setErrorHandler((error, _, reply) => {

@@ -50,6 +50,14 @@ enum TaxFrequency {
   ANNUAL
 }
 
+
+enum InvestmentStatus {
+  ACTIVE
+  MATURED
+  SOLD
+  CANCELLED
+}
+
 enum InvestmentType {
   STOCKS
   FUNDS
@@ -75,9 +83,8 @@ model User {
   creditCardPurchases CreditCardPurchase[]
   salaryProfiles SalaryProfile[]
   expenses Expense[]
-  monthlyInvestments MonthlyInvestment[]
+  investments Investment[]
   taxes Tax[]
-  investmentPortfolio InvestmentPortfolio?
 
   @@map("users")
 }
@@ -112,7 +119,6 @@ model FinancialData {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   transactions Transaction[]
-  investments Investment[]
 
   @@unique([user_id, month, year])
   @@map("financial_data")
@@ -132,17 +138,6 @@ model Transaction {
   @@map("transactions")
 }
 
-model Investment {
-  id               String @id @default(uuid())
-  type             String
-  balance          Decimal
-  financial_data_id String
-  created_at       DateTime @default(now())
-
-  financialData FinancialData @relation(fields: [financial_data_id], references: [id], onDelete: Cascade)
-
-  @@map("investments")
-}
 
 model CreditCardPurchase {
   id              String   @id @default(uuid())
@@ -218,23 +213,31 @@ model Expense {
   @@map("expenses")
 }
 
-model MonthlyInvestment {
-  id                String         @id @default(uuid())
-  name              String
-  description       String?
-  amount            Decimal
-  investment_type   InvestmentType
-  category          String?
-  month             String
-  year              Int
-  date              DateTime       @default(now())
-  user_id           String
-  created_at        DateTime       @default(now())
-  updated_at        DateTime       @updatedAt
+model Investment {
+  id                  String             @id @default(uuid())
+  name                String
+  description         String?
+  amount              Decimal            // Valor investido
+  gross_yield         Decimal?           // Rendimento bruto
+  investment_type     InvestmentType
+  category            String?
+  month               String
+  year                Int
+  date                DateTime           @default(now())
+  purchase_date       DateTime?          // Data de compra (pode ser diferente da date)
+  maturity_date       DateTime?          // Data de vencimento
+  interest_rate       Decimal?           // Taxa de juros
+  quantity            Decimal?           // Quantidade de cotas/ações
+  broker              String?            // Corretora
+  status              InvestmentStatus   @default(ACTIVE)
+  notes               String?
+  user_id             String
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  @@map("monthly_investments")
+  @@map("investments")
 }
 
 model Tax {
@@ -256,75 +259,4 @@ model Tax {
   @@map("taxes")
 }
 
-enum AssetType {
-  CDB
-  TREASURY_DIRECT
-  LCI_LCA
-  SAVINGS
-  STOCKS
-  FUNDS
-  CRYPTO
-  DEBENTURES
-  OTHER
-}
 
-enum AssetStatus {
-  ACTIVE
-  MATURED
-  SOLD
-  CANCELLED
-}
-
-model InvestmentPortfolio {
-  id                String   @id @default(uuid())
-  user_id           String
-  total_invested    Decimal  @default(0)
-  current_value     Decimal  @default(0)
-  total_return      Decimal  @default(0)
-  return_percentage Decimal  @default(0)
-  last_updated      DateTime @default(now())
-  created_at        DateTime @default(now())
-  updated_at        DateTime @updatedAt
-
-  user   User            @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  assets PortfolioAsset[]
-
-  @@unique([user_id])
-  @@map("investment_portfolios")
-}
-
-model PortfolioAsset {
-  id                  String      @id @default(uuid())
-  portfolio_id        String
-  name                String
-  asset_type          AssetType
-  initial_investment  Decimal
-  current_value       Decimal
-  quantity            Decimal?    // Para ações, cotas, etc.
-  purchase_date       DateTime
-  maturity_date       DateTime?   // Para CDbs, Tesouro, etc.
-  interest_rate       Decimal?    // Taxa de juros para renda fixa
-  status              AssetStatus @default(ACTIVE)
-  notes               String?
-  broker              String?     // Corretora
-  created_at          DateTime    @default(now())
-  updated_at          DateTime    @updatedAt
-
-  portfolio InvestmentPortfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade)
-  history   AssetHistory[]
-
-  @@map("portfolio_assets")
-}
-
-model AssetHistory {
-  id         String   @id @default(uuid())
-  asset_id   String
-  value      Decimal
-  date       DateTime
-  notes      String?
-  created_at DateTime @default(now())
-
-  asset PortfolioAsset @relation(fields: [asset_id], references: [id], onDelete: Cascade)
-
-  @@map("asset_history")
-}

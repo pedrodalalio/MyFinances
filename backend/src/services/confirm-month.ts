@@ -3,7 +3,7 @@ import { SalaryProfilesRepository } from "@/repositories/salary-profiles-reposit
 import { CreditCardInstallmentsRepository } from "@/repositories/credit-card-installments-repository";
 import { CreditCardPurchasesRepository } from "@/repositories/credit-card-purchases-repository";
 import { ExpenseRepository } from "@/repositories/expense-repository";
-import { MonthlyInvestmentRepository } from "@/repositories/monthly-investment-repository";
+import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { ResourceNotFoundError } from "./errors/resource-not-found-error";
 
@@ -20,7 +20,7 @@ export class ConfirmMonthService {
     private creditCardInstallmentsRepository: CreditCardInstallmentsRepository,
     private creditCardPurchasesRepository: CreditCardPurchasesRepository,
     private expenseRepository: ExpenseRepository,
-    private monthlyInvestmentRepository: MonthlyInvestmentRepository,
+    private investmentRepository: InvestmentRepository,
     private taxRepository: TaxRepository,
   ) {}
 
@@ -60,7 +60,7 @@ export class ConfirmMonthService {
       year,
     );
     const monthlyInvestments =
-      await this.monthlyInvestmentRepository.findByMonthAndUser(
+      await this.investmentRepository.findByMonthAndUser(
         userId,
         month,
         year,
@@ -122,18 +122,6 @@ export class ConfirmMonthService {
 
     // Calcular saldo final real
     const finalBalance = totalIncome - totalExpenses;
-
-    console.log("=== DEBUG CONFIRM MONTH ===");
-    console.log("salaryAmount:", salaryAmount);
-    console.log("checkingAccount:", checkingAccount);
-    console.log("previousBalance:", previousBalance);
-    console.log("totalIncome calculado:", totalIncome);
-    console.log("realExpensesTotal:", realExpensesTotal);
-    console.log("realCreditCardTotal:", realCreditCardTotal);
-    console.log("realTaxesTotal:", realTaxesTotal);
-    console.log("realInvestmentsTotal:", realInvestmentsTotal);
-    console.log("totalExpenses calculado:", totalExpenses);
-    console.log("finalBalance calculado:", finalBalance);
 
     // Calcular próximo mês e ano
     const currentMonthInt = parseInt(month);
