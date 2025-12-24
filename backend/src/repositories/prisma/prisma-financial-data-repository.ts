@@ -14,7 +14,6 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       },
       include: {
         transactions: true,
-        investments: true,
       },
     });
 
@@ -26,7 +25,6 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       data,
       include: {
         transactions: true,
-        investments: true,
       },
     });
 
@@ -39,7 +37,6 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       data,
       include: {
         transactions: true,
-        investments: true,
       },
     });
 
@@ -53,7 +50,6 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       },
       include: {
         transactions: true,
-        investments: true,
       },
       orderBy: [{ year: "desc" }, { month: "desc" }],
     });

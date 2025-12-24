@@ -141,7 +141,7 @@ const Dashboard = ({ children }: { children?: React.ReactNode }) => {
         <div className="flex-1 flex flex-col">
           <DashboardNavbar />
           <main className="flex-1">
-            <div className="container mx-auto py-6">
+            <div className="container mx-auto py-6 px-4">
               <Suspense
                 fallback={
                   <div className="space-y-4">

@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm add:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(npx prisma migrate:*)"
+    ]
+  }
+}

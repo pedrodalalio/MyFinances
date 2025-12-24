@@ -346,7 +346,7 @@ const MonthlyTrackingPage = () => {
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="text-lg font-semibold min-w-[200px] text-center">
+          <div className="text-lg font-semibold min-w-[150px] md:min-w-[200px] text-center">
             {currentMonthLabel} {currentDate.year}
           </div>
           <Button

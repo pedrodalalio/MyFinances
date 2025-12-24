@@ -244,7 +244,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={distributionDataWithPercentage}
@@ -285,7 +285,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
             <CardTitle>Rentabilidade por Investimento</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={profitabilityData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
@@ -311,7 +311,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
             <CardTitle>Valor Investido vs Valor Atual</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={400}>
+            <ResponsiveContainer width="100%" height={300}>
               <BarChart data={profitabilityData} margin={{ bottom: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
