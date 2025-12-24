@@ -586,7 +586,9 @@ const UnifiedInvestmentsPage = () => {
                       name="gross_yield"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Rendimento Bruto Atual (opcional)</FormLabel>
+                          <FormLabel>
+                            Rendimento Bruto Atual (opcional)
+                          </FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -715,7 +717,6 @@ const UnifiedInvestmentsPage = () => {
                           </FormItem>
                         )}
                       />
-
                     </div>
 
                     <FormField
@@ -723,7 +724,9 @@ const UnifiedInvestmentsPage = () => {
                       name="gross_yield"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Rendimento Bruto Atual (opcional)</FormLabel>
+                          <FormLabel>
+                            Rendimento Bruto Atual (opcional)
+                          </FormLabel>
                           <FormControl>
                             <Input
                               type="number"
@@ -874,9 +877,7 @@ const UnifiedInvestmentsPage = () => {
                       </Button>
                     </div>
                   </div>
-                  <InvestmentCharts
-                    investments={portfolio.allInvestments}
-                  />
+                  <InvestmentCharts investments={portfolio.allInvestments} />
                 </div>
               )}
             </>
