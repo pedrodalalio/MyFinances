@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, CreditCard, Trash2, Edit } from "lucide-react";
+import { Plus, CreditCard, Trash2, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 const months = [
   { value: "01", label: "Janeiro" },
@@ -105,11 +110,22 @@ interface Purchase {
   created_at: string;
 }
 
+interface MonthlyBill {
+  month: string;
+  year: number;
+  purchases: Purchase[];
+  total: number;
+}
+
 const CardsPage = () => {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, "0")}`;
+  });
 
   useEffect(() => {
     document.title = "Cartões | MyFinances";
@@ -256,6 +272,99 @@ const CardsPage = () => {
       console.error("Erro ao deletar gasto:", error);
     }
   };
+
+  const generateMonthlyBills = (): MonthlyBill[] => {
+    const billsMap = new Map<string, MonthlyBill>();
+
+    purchases.forEach(purchase => {
+      if (purchase.is_recurring) {
+        const startDate = new Date(purchase.start_year, parseInt(purchase.start_month) - 1);
+        const currentDate = new Date();
+
+        let currentMonth = startDate.getMonth();
+        let currentYear = startDate.getFullYear();
+
+        while (new Date(currentYear, currentMonth) <= currentDate) {
+          const key = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
+
+          if (!billsMap.has(key)) {
+            billsMap.set(key, {
+              month: (currentMonth + 1).toString().padStart(2, "0"),
+              year: currentYear,
+              purchases: [],
+              total: 0
+            });
+          }
+
+          const bill = billsMap.get(key)!;
+
+          // Verifica se o gasto já foi adicionado para evitar duplicatas
+          if (!bill.purchases.find(p => p.id === purchase.id)) {
+            bill.purchases.push(purchase);
+            bill.total += purchase.installment_amount;
+          }
+
+          currentMonth++;
+          if (currentMonth === 12) {
+            currentMonth = 0;
+            currentYear++;
+          }
+        }
+      } else {
+        const startDate = new Date(purchase.start_year, parseInt(purchase.start_month) - 1);
+        const endDate = new Date(purchase.end_year || purchase.start_year, parseInt(purchase.end_month || purchase.start_month) - 1);
+
+        let currentMonth = startDate.getMonth();
+        let currentYear = startDate.getFullYear();
+
+        while (new Date(currentYear, currentMonth) <= endDate) {
+          const key = `${currentYear}-${(currentMonth + 1).toString().padStart(2, "0")}`;
+
+          if (!billsMap.has(key)) {
+            billsMap.set(key, {
+              month: (currentMonth + 1).toString().padStart(2, "0"),
+              year: currentYear,
+              purchases: [],
+              total: 0
+            });
+          }
+
+          const bill = billsMap.get(key)!;
+
+          // Verifica se o gasto já foi adicionado para evitar duplicatas
+          if (!bill.purchases.find(p => p.id === purchase.id)) {
+            bill.purchases.push(purchase);
+            bill.total += purchase.installment_amount;
+          }
+
+          currentMonth++;
+          if (currentMonth === 12) {
+            currentMonth = 0;
+            currentYear++;
+          }
+        }
+      }
+    });
+
+    return Array.from(billsMap.values()).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return parseInt(a.month) - parseInt(b.month);
+    });
+  };
+
+  const monthlyBills = generateMonthlyBills();
+
+  const getSelectedMonthData = () => {
+    return monthlyBills.find(bill => `${bill.year}-${bill.month}` === selectedMonth) || {
+      month: selectedMonth.split('-')[1],
+      year: parseInt(selectedMonth.split('-')[0]),
+      purchases: [],
+      total: 0
+    };
+  };
+
+  const selectedMonthData = getSelectedMonthData();
+  const selectedMonthName = months.find(m => m.value === selectedMonthData.month)?.label || selectedMonthData.month;
 
   return (
     <div className="space-y-6">
@@ -483,102 +592,177 @@ const CardsPage = () => {
         </Dialog>
       </div>
 
-      <div className="grid gap-4">
-        {purchases.length === 0 ? (
+      {/* Carrossel de meses */}
+      {purchases.length > 0 && (
+        <div className="border-b">
+          <div className="overflow-x-auto">
+            <div className="flex gap-1 min-w-max">
+              {monthlyBills.map((bill) => {
+                const monthKey = `${bill.year}-${bill.month}`;
+                const monthName = months.find(m => m.value === bill.month)?.label || bill.month;
+                const isActive = selectedMonth === monthKey;
+
+                return (
+                  <Button
+                    key={monthKey}
+                    variant={isActive ? "default" : "ghost"}
+                    className={`whitespace-nowrap px-6 py-2 rounded-none border-b-2 ${
+                      isActive
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-transparent hover:border-muted-foreground/30"
+                    }`}
+                    onClick={() => setSelectedMonth(monthKey)}
+                  >
+                    <span className="font-medium">
+                      {monthName}/{bill.year.toString().slice(-2)}
+                    </span>
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {purchases.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhum gasto cadastrado</h3>
+            <p className="text-muted-foreground text-center mb-4">
+              Comece adicionando seus gastos de cartão de crédito para acompanhar suas finanças.
+            </p>
+            <Button onClick={() => setIsDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Adicionar Primeiro Gasto
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-6">
+          {/* Resumo do mês selecionado */}
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Nenhum gasto cadastrado</h3>
-              <p className="text-muted-foreground text-center mb-4">
-                Comece adicionando seus gastos de cartão de crédito para acompanhar suas finanças.
-              </p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar Primeiro Gasto
-              </Button>
-            </CardContent>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    Fatura de {selectedMonthName} {selectedMonthData.year}
+                  </CardTitle>
+                  <CardDescription>
+                    {selectedMonthData.purchases.length === 0
+                      ? "Nenhum gasto neste mês"
+                      : `${selectedMonthData.purchases.length} ${selectedMonthData.purchases.length === 1 ? 'gasto' : 'gastos'} no cartão`
+                    }
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-primary">
+                    R$ {formatCurrency(selectedMonthData.total)}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Total da fatura
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
           </Card>
-        ) : (
-          purchases.map((purchase) => (
-            <Card key={purchase.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <CreditCard className="h-5 w-5" />
-                      {purchase.name}
-                    </CardTitle>
-                    {purchase.description && (
-                      <CardDescription>{purchase.description}</CardDescription>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => editPurchase(purchase)}
-                      className="text-blue-500 hover:text-blue-700"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => deletePurchase(purchase.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                  <div>
-                    <p className="text-muted-foreground">Valor Total</p>
-                    <p className="font-semibold">
-                      R$ {formatCurrency(purchase.total_amount)}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">
-                      {purchase.is_recurring ? "Valor Mensal" : "Parcela"}
-                    </p>
-                    <p className="font-semibold">
-                      R$ {formatCurrency(purchase.installment_amount)}
-                    </p>
-                  </div>
-                  {!purchase.is_recurring && (
-                    <div>
-                      <p className="text-muted-foreground">Parcelas</p>
-                      <p className="font-semibold">{purchase.installments}x</p>
-                    </div>
-                  )}
-                  <div>
-                    <p className="text-muted-foreground">
-                      {purchase.is_recurring ? "Início" : "Período"}
-                    </p>
-                    <p className="font-semibold">
-                      {purchase.is_recurring
-                        ? `${purchase.start_month}/${purchase.start_year} - Permanente`
-                        : `${purchase.start_month}/${purchase.start_year} - ${purchase.end_month}/${purchase.end_year}`
-                      }
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-3 flex gap-2">
-                  {purchase.is_recurring && (
-                    <Badge variant="default">Recorrente</Badge>
-                  )}
-                  {purchase.category && (
-                    <Badge variant="secondary">{purchase.category}</Badge>
-                  )}
-                </div>
+
+          {/* Lista de gastos do mês */}
+          {selectedMonthData.purchases.length === 0 ? (
+            <Card>
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Nenhum gasto em {selectedMonthName} {selectedMonthData.year}</h3>
+                <p className="text-muted-foreground text-center mb-4">
+                  Não há gastos registrados para este mês.
+                </p>
               </CardContent>
             </Card>
-          ))
-        )}
-      </div>
+          ) : (
+            <div className="grid gap-4">
+              {selectedMonthData.purchases.map((purchase) => (
+                <Card key={purchase.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="flex items-center gap-2">
+                          <CreditCard className="h-5 w-5" />
+                          {purchase.name}
+                        </CardTitle>
+                        {purchase.description && (
+                          <CardDescription>{purchase.description}</CardDescription>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => editPurchase(purchase)}
+                          className="text-blue-500 hover:text-blue-700"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deletePurchase(purchase.id)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">Valor Total</p>
+                        <p className="font-semibold">
+                          R$ {formatCurrency(purchase.total_amount)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">
+                          {purchase.is_recurring ? "Valor Mensal" : "Parcela"}
+                        </p>
+                        <p className="font-semibold">
+                          R$ {formatCurrency(purchase.installment_amount)}
+                        </p>
+                      </div>
+                      {!purchase.is_recurring && (
+                        <div>
+                          <p className="text-muted-foreground">Parcelas</p>
+                          <p className="font-semibold">{purchase.installments}x</p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-muted-foreground">
+                          {purchase.is_recurring ? "Início" : "Período"}
+                        </p>
+                        <p className="font-semibold">
+                          {purchase.is_recurring
+                            ? `${purchase.start_month}/${purchase.start_year} - Permanente`
+                            : `${purchase.start_month}/${purchase.start_year} - ${purchase.end_month}/${purchase.end_year}`
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      {purchase.is_recurring && (
+                        <Badge variant="default">Recorrente</Badge>
+                      )}
+                      {purchase.category && (
+                        <Badge variant="secondary">{purchase.category}</Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
