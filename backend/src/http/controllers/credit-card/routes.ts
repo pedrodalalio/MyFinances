@@ -5,6 +5,7 @@ import { updatePurchase } from './update-purchase'
 import { deletePurchase } from './delete-purchase'
 import { getMonthlyExpenses } from './get-monthly-expenses'
 import { updateInstallment } from './update-installment'
+import { listInstallments } from './list-installments'
 import { verifyJWT } from "@/http/middlewares/verify-jwt";
 
 export async function creditCardRoutes(app: FastifyInstance) {
@@ -12,6 +13,7 @@ export async function creditCardRoutes(app: FastifyInstance) {
 
   app.post("/credit-cards/purchases", createPurchase)
   app.get("/credit-cards/purchases", listPurchases)
+  app.get("/credit-cards/purchases/:purchaseId/installments", listInstallments)
   app.get("/credit-cards/monthly-expenses", getMonthlyExpenses)
   app.put("/credit-cards/purchases/:id", updatePurchase)
   app.put("/credit-cards/installments/:installmentId", updateInstallment)

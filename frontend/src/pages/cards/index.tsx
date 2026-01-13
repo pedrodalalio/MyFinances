@@ -301,7 +301,7 @@ const CardsPage = () => {
           // Verifica se o gasto já foi adicionado para evitar duplicatas
           if (!bill.purchases.find(p => p.id === purchase.id)) {
             bill.purchases.push(purchase);
-            bill.total += purchase.installment_amount;
+            bill.total += Number(purchase.installment_amount);
           }
 
           currentMonth++;
@@ -334,7 +334,7 @@ const CardsPage = () => {
           // Verifica se o gasto já foi adicionado para evitar duplicatas
           if (!bill.purchases.find(p => p.id === purchase.id)) {
             bill.purchases.push(purchase);
-            bill.total += purchase.installment_amount;
+            bill.total += Number(purchase.installment_amount);
           }
 
           currentMonth++;
@@ -639,6 +639,7 @@ const CardsPage = () => {
           </CardContent>
         </Card>
       ) : (
+        
         <div className="space-y-6">
           {/* Resumo do mês selecionado */}
           <Card>
