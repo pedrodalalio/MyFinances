@@ -2,6 +2,8 @@ import { FastifyInstance } from "fastify";
 import { createSalaryProfile } from './create-salary-profile'
 import { listSalaryProfiles } from './list-salary-profiles'
 import { getCurrentSalary } from './get-current-salary'
+import { updateSalaryProfile } from './update-salary-profile'
+import { deleteSalaryProfile } from './delete-salary-profile'
 import { verifyJWT } from "@/http/middlewares/verify-jwt";
 
 export async function salaryRoutes(app: FastifyInstance) {
@@ -10,4 +12,6 @@ export async function salaryRoutes(app: FastifyInstance) {
   app.post("/salary/profiles", createSalaryProfile)
   app.get("/salary/profiles", listSalaryProfiles)
   app.get("/salary/current", getCurrentSalary)
+  app.put("/salary/profiles/:id", updateSalaryProfile)
+  app.delete("/salary/profiles/:id", deleteSalaryProfile)
 }

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, DollarSign, Calendar, TrendingUp, Settings2 } from "lucide-react";
+import { Plus, DollarSign, Calendar, TrendingUp, Pencil, Trash2 } from "lucide-react";
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -44,8 +54,17 @@ const formatDate = (date: string): string => {
   return new Date(date).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric"
+    year: "numeric",
+    timeZone: "UTC"
   });
+};
+
+const formatDateForInput = (date: string): string => {
+  const d = new Date(date);
+  const year = d.getUTCFullYear();
+  const month = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 };
 
 const salaryProfileSchema = z.object({
@@ -77,6 +96,8 @@ const SettingsPage = () => {
   const [salaryProfiles, setSalaryProfiles] = useState<SalaryProfile[]>([]);
   const [currentSalary, setCurrentSalary] = useState<SalaryProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingProfile, setEditingProfile] = useState<SalaryProfile | null>(null);
+  const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -113,6 +134,28 @@ const SettingsPage = () => {
     }
   };
 
+  const openCreateDialog = () => {
+    setEditingProfile(null);
+    form.reset({
+      amount: "",
+      description: "",
+      start_date: "",
+      end_date: "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (profile: SalaryProfile) => {
+    setEditingProfile(profile);
+    form.reset({
+      amount: String(profile.amount),
+      description: profile.description || "",
+      start_date: formatDateForInput(profile.start_date),
+      end_date: profile.end_date ? formatDateForInput(profile.end_date) : "",
+    });
+    setIsDialogOpen(true);
+  };
+
   const onSubmit = async (values: SalaryProfileFormValues) => {
     setLoading(true);
     try {
@@ -123,14 +166,34 @@ const SettingsPage = () => {
         end_date: values.end_date || undefined,
       };
 
-      await api.post("/salary/profiles", requestBody);
+      if (editingProfile) {
+        await api.put(`/salary/profiles/${editingProfile.id}`, requestBody);
+      } else {
+        await api.post("/salary/profiles", requestBody);
+      }
 
       setIsDialogOpen(false);
+      setEditingProfile(null);
       form.reset();
       loadSalaryProfiles();
       loadCurrentSalary();
     } catch (error) {
-      console.error("Erro ao criar perfil salarial:", error);
+      console.error("Erro ao salvar perfil salarial:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingProfileId) return;
+    setLoading(true);
+    try {
+      await api.delete(`/salary/profiles/${deletingProfileId}`);
+      setDeletingProfileId(null);
+      loadSalaryProfiles();
+      loadCurrentSalary();
+    } catch (error) {
+      console.error("Erro ao apagar perfil salarial:", error);
     } finally {
       setLoading(false);
     }
@@ -201,105 +264,10 @@ const SettingsPage = () => {
               <CardTitle>Histórico Salarial</CardTitle>
             </div>
 
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Definir Novo Salário
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Definir Novo Salário</DialogTitle>
-                  <DialogDescription>
-                    Configure um novo perfil salarial com período de vigência.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="amount"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Valor do Salário</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="5000,00"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <FormField
-                      control={form.control}
-                      name="description"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Descrição (opcional)</FormLabel>
-                          <FormControl>
-                            <Textarea
-                              placeholder="Ex: Promoção, Aumento anual..."
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="start_date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Data de Início</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="end_date"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Data de Fim (opcional)</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsDialogOpen(false)}
-                      >
-                        Cancelar
-                      </Button>
-                      <Button type="submit" disabled={loading}>
-                        {loading ? "Salvando..." : "Salvar"}
-                      </Button>
-                    </div>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+            <Button onClick={openCreateDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Definir Novo Salário
+            </Button>
           </div>
         </CardHeader>
         <CardContent>
@@ -311,7 +279,7 @@ const SettingsPage = () => {
                 <p className="text-muted-foreground text-center mb-4">
                   Comece definindo seu primeiro perfil salarial.
                 </p>
-                <Button onClick={() => setIsDialogOpen(true)}>
+                <Button onClick={openCreateDialog}>
                   <Plus className="mr-2 h-4 w-4" />
                   Definir Primeiro Salário
                 </Button>
@@ -333,10 +301,24 @@ const SettingsPage = () => {
                         </p>
                       )}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                       {profile.is_active && (
                         <Badge variant="default">Ativo</Badge>
                       )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => openEditDialog(profile)}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setDeletingProfileId(profile.id)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -357,6 +339,129 @@ const SettingsPage = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog de Criar/Editar */}
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) setEditingProfile(null);
+      }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingProfile ? "Editar Salário" : "Definir Novo Salário"}
+            </DialogTitle>
+            <DialogDescription>
+              {editingProfile
+                ? "Altere os dados do perfil salarial."
+                : "Configure um novo perfil salarial com período de vigência."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Valor do Salário</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="5000,00"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Descrição (opcional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Ex: Promoção, Aumento anual..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="start_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Início</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="end_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data de Fim (opcional)</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsDialogOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? "Salvando..." : "Salvar"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação de Exclusão */}
+      <AlertDialog
+        open={!!deletingProfileId}
+        onOpenChange={(open) => { if (!open) setDeletingProfileId(null); }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar salário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja apagar este perfil salarial? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={loading}>
+              {loading ? "Apagando..." : "Apagar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
