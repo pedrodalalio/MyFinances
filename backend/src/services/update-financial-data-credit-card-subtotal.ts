@@ -44,12 +44,11 @@ export class UpdateFinancialDataCreditCardSubtotalService {
     // Total de cartão de crédito
     const creditCardSubtotal = installmentsTotal + recurringTotal
 
-    // Buscar ou criar FinancialData para o mês
+    // Buscar ou criar FinancialData para o mês (upsert para evitar race condition)
     let financialData = await this.financialDataRepository.findByUserAndPeriod(userId, month, year)
 
     if (!financialData) {
-      // Criar novo registro se não existir
-      financialData = await this.financialDataRepository.create({
+      financialData = await this.financialDataRepository.upsert(userId, month, year, {
         user_id: userId,
         month,
         year,

@@ -31,6 +31,25 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
     return financialData;
   }
 
+  async upsert(userId: string, month: string, year: number, data: Prisma.FinancialDataUncheckedCreateInput) {
+    const financialData = await prisma.financialData.upsert({
+      where: {
+        user_id_month_year: {
+          user_id: userId,
+          month,
+          year,
+        },
+      },
+      create: data,
+      update: {},
+      include: {
+        transactions: true,
+      },
+    });
+
+    return financialData;
+  }
+
   async update(id: string, data: Prisma.FinancialDataUpdateInput) {
     const financialData = await prisma.financialData.update({
       where: { id },

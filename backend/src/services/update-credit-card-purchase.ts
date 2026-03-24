@@ -84,7 +84,7 @@ export class UpdateCreditCardPurchaseService {
       is_recurring,
     })
 
-    // Se mudou de parcelado para recorrente ou vice-versa, recriar as parcelas
+    // Se mudou de parcelado para recorrente ou vice-versa, ou mudou o número de parcelas, recriar
     const wasRecurring = existingPurchase.is_recurring
     const isNowRecurring = is_recurring
 
@@ -115,6 +115,12 @@ export class UpdateCreditCardPurchaseService {
             currentYear++
           }
         }
+      }
+    } else if (!is_recurring && Number(existingPurchase.installment_amount) !== installment_amount) {
+      // Valor total mudou mas parcelas não — atualizar todas as parcelas individuais
+      const existingInstallments = await this.creditCardInstallmentsRepository.findManyByPurchase(id)
+      for (const inst of existingInstallments) {
+        await this.creditCardInstallmentsRepository.update(inst.id, installment_amount)
       }
     }
 
