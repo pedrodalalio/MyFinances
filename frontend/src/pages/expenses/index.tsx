@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, Wallet, Trash2, Edit, Calendar } from "lucide-react";
+import { Plus, Wallet, Trash2, Edit } from "lucide-react";
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
@@ -55,8 +55,6 @@ const months = [
   { value: "12", label: "Dezembro" },
 ];
 
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 10 }, (_, i) => currentYear - 2 + i);
 
 const paymentMethods = [
   { value: "PIX", label: "PIX" },
@@ -74,7 +72,7 @@ const formatCurrency = (value: number): string => {
 };
 
 const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString("pt-BR");
+  return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };
 
 const expenseSchema = z.object({
@@ -85,9 +83,7 @@ const expenseSchema = z.object({
   }),
   payment_method: z.string().min(1, "Método de pagamento é obrigatório"),
   category: z.string().optional(),
-  month: z.string().min(1, "Mês é obrigatório"),
-  year: z.string().min(1, "Ano é obrigatório"),
-  date: z.string().optional(),
+  date: z.string().min(1, "Data é obrigatória"),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
@@ -110,13 +106,33 @@ const ExpensesPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [selectedPeriod, setSelectedPeriod] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, "0")}`;
+  });
+
+  const selectedMonth = parseInt(selectedPeriod.split("-")[1]);
+  const selectedYear = parseInt(selectedPeriod.split("-")[0]);
+
+  const periodMonths = (() => {
+    const result: { month: string; year: number; key: string }[] = [];
+    const today = new Date();
+    const start = new Date(today.getFullYear(), today.getMonth() - 11);
+    const end = new Date(today.getFullYear(), today.getMonth() + 3);
+    let current = new Date(start);
+    while (current <= end) {
+      const m = (current.getMonth() + 1).toString().padStart(2, "0");
+      const y = current.getFullYear();
+      result.push({ month: m, year: y, key: `${y}-${m}` });
+      current.setMonth(current.getMonth() + 1);
+    }
+    return result;
+  })();
 
   useEffect(() => {
     document.title = "Gastos | MyFinances";
     loadExpenses();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedPeriod]);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -126,9 +142,7 @@ const ExpensesPage = () => {
       amount: "",
       payment_method: "PIX",
       category: "",
-      month: selectedMonth.toString().padStart(2, "0"),
-      year: selectedYear.toString(),
-      date: new Date().toISOString().split("T")[0],
+      date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
     },
   });
 
@@ -153,15 +167,16 @@ const ExpensesPage = () => {
   const createExpense = async (values: ExpenseFormValues) => {
     setLoading(true);
     try {
+      const [yearStr, monthStr] = values.date.split("-");
       const requestBody = {
         name: values.name,
         description: values.description,
         amount: Math.round(parseFloat(values.amount) * 100) / 100,
         payment_method: values.payment_method,
         category: values.category,
-        month: values.month,
-        year: parseInt(values.year),
-        date: values.date || new Date().toISOString(),
+        month: monthStr,
+        year: parseInt(yearStr),
+        date: values.date,
       };
 
       await api.post("/expenses", requestBody);
@@ -183,9 +198,7 @@ const ExpensesPage = () => {
       amount: parseFloat(expense.amount).toFixed(2),
       payment_method: expense.payment_method,
       category: expense.category || "",
-      month: expense.month,
-      year: expense.year.toString(),
-      date: new Date(expense.date).toISOString().split("T")[0],
+      date: expense.date.split("T")[0],
     });
     setIsDialogOpen(true);
   };
@@ -195,15 +208,16 @@ const ExpensesPage = () => {
 
     setLoading(true);
     try {
+      const [yearStr, monthStr] = values.date.split("-");
       const requestBody = {
         name: values.name,
         description: values.description,
         amount: Math.round(parseFloat(values.amount) * 100) / 100,
         payment_method: values.payment_method,
         category: values.category,
-        month: values.month,
-        year: parseInt(values.year),
-        date: values.date || new Date().toISOString(),
+        month: monthStr,
+        year: parseInt(yearStr),
+        date: values.date,
       };
 
       await api.put(`/expenses/${editingExpense.id}`, requestBody);
@@ -360,77 +374,19 @@ const ExpensesPage = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="month"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Mês</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {months.map((month) => (
-                              <SelectItem key={month.value} value={month.value}>
-                                {month.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="year"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ano</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {years.map((year) => (
-                              <SelectItem key={year} value={year.toString()}>
-                                {year}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="date"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Data</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
@@ -462,9 +418,7 @@ const ExpensesPage = () => {
                         amount: "",
                         payment_method: "PIX",
                         category: "",
-                        month: selectedMonth.toString().padStart(2, "0"),
-                        year: selectedYear.toString(),
-                        date: new Date().toISOString().split("T")[0],
+                        date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
                       });
                     }}
                   >
@@ -486,63 +440,34 @@ const ExpensesPage = () => {
         </Dialog>
       </div>
 
-      {/* Filtros */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-5 w-5" />
-            Filtros
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-4">
-            <div>
-              <label className="text-sm font-medium">Mês:</label>
-              <Select
-                value={selectedMonth.toString().padStart(2, "0")}
-                onValueChange={(value) => setSelectedMonth(parseInt(value))}
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {months.map((month) => (
-                    <SelectItem key={month.value} value={month.value}>
-                      {month.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-sm font-medium">Ano:</label>
-              <Select
-                value={selectedYear.toString()}
-                onValueChange={(value) => setSelectedYear(parseInt(value))}
-              >
-                <SelectTrigger className="w-24">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="ml-auto">
-              <p className="text-sm text-muted-foreground">
-                Total:{" "}
-                <span className="font-semibold">
-                  R$ {formatCurrency(totalExpenses)}
-                </span>
-              </p>
-            </div>
+      {/* Carrossel de meses */}
+      <div className="border-b">
+        <div className="overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {periodMonths.map((period) => {
+              const monthName = months.find(m => m.value === period.month)?.label || period.month;
+              const isActive = selectedPeriod === period.key;
+
+              return (
+                <Button
+                  key={period.key}
+                  variant={isActive ? "default" : "ghost"}
+                  className={`whitespace-nowrap px-6 py-2 rounded-none border-b-2 ${
+                    isActive
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-transparent hover:border-muted-foreground/30"
+                  }`}
+                  onClick={() => setSelectedPeriod(period.key)}
+                >
+                  <span className="font-medium">
+                    {monthName}/{period.year.toString().slice(-2)}
+                  </span>
+                </Button>
+              );
+            })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="grid gap-4">
         {expenses.length === 0 ? (

@@ -16,7 +16,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     category: z.string().optional(),
     month: z.string().optional(),
     year: z.number().optional(),
-    date: z.string().optional().transform(str => str ? new Date(str) : undefined)
+    date: z.string().optional().transform(str => str ? new Date(str + "T12:00:00Z") : undefined)
   })
 
   const { id } = updateExpenseParamsSchema.parse(request.params)

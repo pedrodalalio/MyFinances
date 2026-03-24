@@ -437,11 +437,6 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   name: "Impostos",
                   value: financial_data.tax_subtotal,
                   color: "#F59E0B"
-                },
-                {
-                  name: "Investimentos",
-                  value: financial_data.investment_subtotal,
-                  color: "#10B981"
                 }
               ]}
             />
@@ -449,11 +444,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             {/* Legenda */}
             <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
               {(() => {
-                const totalExpenses = financial_data.expense_subtotal + financial_data.credit_card_subtotal + financial_data.tax_subtotal + financial_data.investment_subtotal;
+                const totalExpenses = financial_data.expense_subtotal + financial_data.credit_card_subtotal + financial_data.tax_subtotal;
                 const expensePercent = totalExpenses > 0 ? (financial_data.expense_subtotal / totalExpenses * 100).toFixed(1) : 0;
                 const creditPercent = totalExpenses > 0 ? (financial_data.credit_card_subtotal / totalExpenses * 100).toFixed(1) : 0;
                 const taxPercent = totalExpenses > 0 ? (financial_data.tax_subtotal / totalExpenses * 100).toFixed(1) : 0;
-                const investmentPercent = totalExpenses > 0 ? (financial_data.investment_subtotal / totalExpenses * 100).toFixed(1) : 0;
 
                 return (
                   <>
@@ -477,13 +471,6 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                         <span>Impostos</span>
                       </div>
                       <span className="font-medium">{taxPercent}%</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span>Investimentos</span>
-                      </div>
-                      <span className="font-medium">{investmentPercent}%</span>
                     </div>
                   </>
                 );
@@ -532,6 +519,14 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                     {formatCurrency(financial_data.total_expenses)}
                   </span>
                 </div>
+                {financial_data.investment_subtotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Investimentos:</span>
+                    <span className="font-medium text-green-600">
+                      {formatCurrency(financial_data.investment_subtotal)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between border-t pt-2">
                   <span>Resultado:</span>
                   <span

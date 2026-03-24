@@ -99,7 +99,7 @@ const formatCurrency = (value: number): string => {
 };
 
 const formatDate = (dateString: string): string => {
-  return new Date(dateString).toLocaleDateString("pt-BR");
+  return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };
 
 const taxSchema = z.object({
@@ -710,7 +710,7 @@ const TaxesPage = () => {
                   <div>
                     <CardTitle className="flex items-center gap-2">
                       <FileText className="h-5 w-5" />
-                      {getTaxTypeLabel(tax.tax_type)} - {new Date(tax.due_date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+                      {getTaxTypeLabel(tax.tax_type)} - {new Date(tax.due_date).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
                     </CardTitle>
                   </div>
                   <div className="flex gap-1">

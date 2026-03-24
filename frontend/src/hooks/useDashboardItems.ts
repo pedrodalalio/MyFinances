@@ -35,7 +35,7 @@ const useDashboardItems = (): DashboardItem[] => {
       icon: FileText,
     },
     {
-      title: "Acompanhamento",
+      title: "Fechamento",
       url: "/monthly-tracking",
       icon: Calendar,
     },

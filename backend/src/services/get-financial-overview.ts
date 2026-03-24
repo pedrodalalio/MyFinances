@@ -177,7 +177,7 @@ export class GetFinancialOverviewService {
     const investmentSubtotal = realInvestmentsTotal;
     const taxSubtotal = realTaxesTotal;
     const totalExpenses =
-      expenseSubtotal + creditCardSubtotal + taxSubtotal + investmentSubtotal;
+      expenseSubtotal + creditCardSubtotal + taxSubtotal;
     const finalBalance = totalIncome - totalExpenses;
 
     // Usar salário como referência para cálculos se disponível, senão usar receita total

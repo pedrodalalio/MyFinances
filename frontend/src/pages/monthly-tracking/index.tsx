@@ -177,7 +177,7 @@ const MonthlyTrackingPage = () => {
   });
 
   useEffect(() => {
-    document.title = "Acompanhamento Mensal | MyFinances";
+    document.title = "Fechamento Mensal | MyFinances";
     loadMonthlyExpenses();
     loadCashExpenses();
     loadInvestments();
@@ -331,7 +331,7 @@ const MonthlyTrackingPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Acompanhamento Mensal</h1>
+          <h1 className="text-3xl font-bold">Fechamento Mensal</h1>
           <p className="text-muted-foreground">
             Visualize seus gastos de cartão, à vista e investimentos por mês
           </p>
@@ -585,7 +585,7 @@ const MonthlyTrackingPage = () => {
                           R$ {formatCurrency(Number(expense.amount))}
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {new Date(expense.date).toLocaleDateString("pt-BR")}
+                          {new Date(expense.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                         </div>
                       </div>
                     </div>
@@ -713,7 +713,7 @@ const MonthlyTrackingPage = () => {
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {new Date(investment.date).toLocaleDateString(
-                            "pt-BR",
+                            "pt-BR", { timeZone: "UTC" },
                           )}
                         </div>
                       </div>

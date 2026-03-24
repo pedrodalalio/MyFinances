@@ -266,7 +266,7 @@ const UnifiedInvestmentsPage = () => {
         category: values.category,
         month: currentDate.month,
         year: currentDate.year,
-        date: values.date || new Date().toISOString(),
+        date: values.date,
         purchase_date: values.purchase_date || undefined,
         maturity_date: values.maturity_date || undefined,
         interest_rate: values.interest_rate
@@ -363,13 +363,13 @@ const UnifiedInvestmentsPage = () => {
       investment_type: investment.investment_type as any,
       category: investment.category || "",
       date: investment.date
-        ? new Date(investment.date).toISOString().split("T")[0]
+        ? investment.date.split("T")[0]
         : "",
       purchase_date: investment.purchase_date
-        ? new Date(investment.purchase_date).toISOString().split("T")[0]
+        ? investment.purchase_date.split("T")[0]
         : "",
       maturity_date: investment.maturity_date
-        ? new Date(investment.maturity_date).toISOString().split("T")[0]
+        ? investment.maturity_date.split("T")[0]
         : "",
       interest_rate: investment.interest_rate?.toString() || "",
       quantity: investment.quantity?.toString() || "",
@@ -791,7 +791,7 @@ const UnifiedInvestmentsPage = () => {
           </TabsTrigger>
           <TabsTrigger value="monthly" className="flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            Acompanhamento Mensal
+            Fechamento Mensal
           </TabsTrigger>
         </TabsList>
 
@@ -1058,7 +1058,7 @@ const UnifiedInvestmentsPage = () => {
                             <span className="text-muted-foreground">Data:</span>
                             <div className="font-medium">
                               {new Date(investment.date).toLocaleDateString(
-                                "pt-BR",
+                                "pt-BR", { timeZone: "UTC" },
                               )}
                             </div>
                           </div>

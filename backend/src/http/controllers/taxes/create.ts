@@ -12,7 +12,7 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
     day_of_month: z.number().min(1).max(31),
     month: z.string(),
     year: z.number(),
-    due_date: z.string().transform(str => new Date(str))
+    due_date: z.string().transform(str => new Date(str + "T12:00:00Z"))
   })
 
   const { tax_type, amount, payment_method, frequency, day_of_month, month, year, due_date } = createTaxBodySchema.parse(request.body)
