@@ -67,6 +67,7 @@ enum InvestmentType {
   LCI_LCA
   DEBENTURES
   TREASURY
+  ETF
   OTHER
 }
 
@@ -83,8 +84,10 @@ model User {
   creditCardPurchases CreditCardPurchase[]
   salaryProfiles SalaryProfile[]
   expenses Expense[]
+  incomes Income[]
   investments Investment[]
   taxes Tax[]
+  imports Import[]
 
   @@map("users")
 }
@@ -213,6 +216,25 @@ model Expense {
   @@map("expenses")
 }
 
+model Income {
+  id             String        @id @default(uuid())
+  name           String
+  description    String?
+  amount         Decimal
+  source         String?
+  category       String?
+  month          String
+  year           Int
+  date           DateTime      @default(now())
+  user_id        String
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("incomes")
+}
+
 model Investment {
   id                  String             @id @default(uuid())
   name                String
@@ -229,6 +251,8 @@ model Investment {
   interest_rate       Decimal?           // Taxa de juros
   quantity            Decimal?           // Quantidade de cotas/ações
   broker              String?            // Corretora
+  ticker              String?            // Código do ativo
+  dividend_yield      Decimal?           // Dividend yield
   status              InvestmentStatus   @default(ACTIVE)
   notes               String?
   user_id             String
@@ -238,6 +262,53 @@ model Investment {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("investments")
+}
+
+enum ImportTransactionType {
+  EXPENSE
+  INCOME
+  INVESTMENT
+  TAX
+  TRANSFER
+  IGNORE
+}
+
+model Import {
+  id             String        @id @default(uuid())
+  file_name      String
+  month          String
+  year           Int
+  status         String        @default("pending") // pending, reviewed, confirmed
+  total_transactions Int       @default(0)
+  user_id        String
+  created_at     DateTime      @default(now())
+  updated_at     DateTime      @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  transactions ImportTransaction[]
+
+  @@map("imports")
+}
+
+model ImportTransaction {
+  id                String                @id @default(uuid())
+  import_id         String
+  date              DateTime
+  description       String
+  original_description String
+  amount            Decimal
+  type              ImportTransactionType  @default(EXPENSE)
+  category          String?
+  is_credit         Boolean               @default(false) // true = entrada, false = saída
+  is_duplicate      Boolean               @default(false)
+  duplicate_of      String?               // descrição do registro existente que pode ser duplicata
+  group_key         String?               // chave de agrupamento (transações do mesmo destinatário)
+  is_confirmed      Boolean               @default(false)
+  created_at        DateTime              @default(now())
+
+  import Import @relation(fields: [import_id], references: [id], onDelete: Cascade)
+
+  @@map("import_transactions")
 }
 
 model Tax {

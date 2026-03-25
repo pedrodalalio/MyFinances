@@ -46,6 +46,7 @@ interface FinancialOverviewData {
     total_expenses: number;
     final_balance: number;
     expense_subtotal: number;
+    income_subtotal: number;
     investment_subtotal: number;
     credit_card_subtotal: number;
     tax_subtotal: number;
@@ -225,13 +226,15 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   const calculatedTotalIncome =
     financial_data.main_income +
     financial_data.checking_account +
-    financial_data.previous_balance;
+    financial_data.previous_balance +
+    financial_data.income_subtotal;
 
   // Usar salário se disponível, senão usar dados do financial_data
   const displayTotalIncome = salary?.amount
     ? salary.amount +
       financial_data.checking_account +
-      financial_data.previous_balance
+      financial_data.previous_balance +
+      financial_data.income_subtotal
     : financial_data.total_income > 0
       ? financial_data.total_income
       : calculatedTotalIncome;
@@ -260,6 +263,12 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 <div>
                   Saldo anterior:{" "}
                   {formatCurrency(financial_data.previous_balance)}
+                </div>
+              )}
+              {financial_data.income_subtotal > 0 && (
+                <div>
+                  Entradas extras:{" "}
+                  {formatCurrency(financial_data.income_subtotal)}
                 </div>
               )}
               {financial_data.checking_account > 0 && (
@@ -513,6 +522,14 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                     {formatCurrency(referenceIncome)}
                   </span>
                 </div>
+                {financial_data.income_subtotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Entradas extras:</span>
+                    <span className="font-medium text-green-600">
+                      {formatCurrency(financial_data.income_subtotal)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Gastos:</span>
                   <span className="font-medium">

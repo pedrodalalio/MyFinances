@@ -8,6 +8,7 @@ import {
   Edit,
   Receipt,
   TrendingUp,
+  ArrowDownLeft,
 } from "lucide-react";
 import { api } from "@/utils/api";
 
@@ -127,6 +128,23 @@ interface CashExpensesData {
   year: number;
 }
 
+interface IncomeEntry {
+  id: string;
+  name: string;
+  description?: string;
+  amount: number;
+  source?: string;
+  category?: string;
+  date: string;
+}
+
+interface IncomesData {
+  incomes: IncomeEntry[];
+  total: number;
+  month: string;
+  year: number;
+}
+
 interface Investment {
   id: string;
   name: string;
@@ -159,10 +177,13 @@ const MonthlyTrackingPage = () => {
   );
   const [cashExpensesData, setCashExpensesData] =
     useState<CashExpensesData | null>(null);
+  const [incomesData, setIncomesData] =
+    useState<IncomesData | null>(null);
   const [investmentsData, setInvestmentsData] =
     useState<InvestmentsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCashExpenses, setLoadingCashExpenses] = useState(false);
+  const [loadingIncomes, setLoadingIncomes] = useState(false);
   const [loadingInvestments, setLoadingInvestments] = useState(false);
   const [editingInstallment, setEditingInstallment] =
     useState<MonthlyExpense | null>(null);
@@ -180,6 +201,7 @@ const MonthlyTrackingPage = () => {
     document.title = "Fechamento Mensal | MyFinances";
     loadMonthlyExpenses();
     loadCashExpenses();
+    loadIncomes();
     loadInvestments();
   }, [currentDate]);
 
@@ -218,6 +240,30 @@ const MonthlyTrackingPage = () => {
       console.error("Erro ao carregar gastos à vista:", error);
     } finally {
       setLoadingCashExpenses(false);
+    }
+  };
+
+  const loadIncomes = async () => {
+    setLoadingIncomes(true);
+    try {
+      const response = await api.get(
+        `/incomes/${currentDate.month}/${currentDate.year}`,
+      );
+      const data = response.data;
+      const total = data.incomes.reduce(
+        (sum: number, income: IncomeEntry) => sum + Number(income.amount),
+        0,
+      );
+      setIncomesData({
+        incomes: data.incomes,
+        total,
+        month: currentDate.month,
+        year: currentDate.year,
+      });
+    } catch (error) {
+      console.error("Erro ao carregar entradas:", error);
+    } finally {
+      setLoadingIncomes(false);
     }
   };
 
@@ -333,7 +379,7 @@ const MonthlyTrackingPage = () => {
         <div>
           <h1 className="text-3xl font-bold">Fechamento Mensal</h1>
           <p className="text-muted-foreground">
-            Visualize seus gastos de cartão, à vista e investimentos por mês
+            Visualize seus gastos, entradas e investimentos por mês
           </p>
         </div>
 
@@ -586,6 +632,100 @@ const MonthlyTrackingPage = () => {
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {new Date(expense.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Entradas */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ArrowDownLeft className="h-5 w-5" />
+              <CardTitle>Entradas Extras</CardTitle>
+            </div>
+            {incomesData && (
+              <div className="text-lg font-semibold text-green-600">
+                R$ {formatCurrency(incomesData.total)}
+              </div>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {incomesData && (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <ArrowDownLeft className="h-4 w-4" />
+                    <span className="font-medium">Total de Entradas</span>
+                  </div>
+                  <span className="font-semibold">
+                    {incomesData.incomes.length}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {loadingIncomes ? (
+                  <div className="flex items-center justify-center py-8">
+                    <p>Carregando entradas...</p>
+                  </div>
+                ) : incomesData.incomes.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <ArrowDownLeft className="h-12 w-12 text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">
+                      Nenhuma entrada encontrada
+                    </h3>
+                    <p className="text-muted-foreground text-center">
+                      Não há entradas extras para {currentMonthLabel} de{" "}
+                      {currentDate.year}.
+                    </p>
+                  </div>
+                ) : (
+                  incomesData.incomes.map((income) => (
+                    <div
+                      key={income.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
+                          <ArrowDownLeft className="h-4 w-4 text-green-600" />
+                          <div>
+                            <span className="font-medium">{income.name}</span>
+                            {income.description && (
+                              <p className="text-xs text-muted-foreground">
+                                {income.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          {income.source && (
+                            <Badge variant="outline" className="text-xs">
+                              {income.source}
+                            </Badge>
+                          )}
+                          {income.category && (
+                            <Badge variant="secondary" className="text-xs">
+                              {income.category}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-green-600">
+                          R$ {formatCurrency(Number(income.amount))}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(income.date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
                         </div>
                       </div>
                     </div>

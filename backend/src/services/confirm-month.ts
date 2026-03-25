@@ -3,6 +3,7 @@ import { SalaryProfilesRepository } from "@/repositories/salary-profiles-reposit
 import { CreditCardInstallmentsRepository } from "@/repositories/credit-card-installments-repository";
 import { CreditCardPurchasesRepository } from "@/repositories/credit-card-purchases-repository";
 import { ExpenseRepository } from "@/repositories/expense-repository";
+import { IncomeRepository } from "@/repositories/income-repository";
 import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { ResourceNotFoundError } from "./errors/resource-not-found-error";
@@ -20,6 +21,7 @@ export class ConfirmMonthService {
     private creditCardInstallmentsRepository: CreditCardInstallmentsRepository,
     private creditCardPurchasesRepository: CreditCardPurchasesRepository,
     private expenseRepository: ExpenseRepository,
+    private incomeRepository: IncomeRepository,
     private investmentRepository: InvestmentRepository,
     private taxRepository: TaxRepository,
   ) {}
@@ -55,6 +57,11 @@ export class ConfirmMonthService {
     const recurringPurchases =
       await this.creditCardPurchasesRepository.findManyByUser(userId);
     const expenses = await this.expenseRepository.findByMonthAndUser(
+      userId,
+      month,
+      year,
+    );
+    const incomes = await this.incomeRepository.findByMonthAndUser(
       userId,
       month,
       year,
@@ -104,6 +111,12 @@ export class ConfirmMonthService {
       0,
     );
 
+    // Calcular total das entradas extras
+    const realIncomesTotal = incomes.reduce(
+      (sum, income) => sum + Number(income.amount),
+      0,
+    );
+
     // Calcular receita total real
     const mainIncome = Number(currentMonthData.main_income);
     const checkingAccount = Number(currentMonthData.checking_account);
@@ -111,14 +124,13 @@ export class ConfirmMonthService {
     const salaryAmount = currentSalary
       ? Number(currentSalary.amount)
       : mainIncome;
-    const totalIncome = salaryAmount + checkingAccount + previousBalance;
+    const totalIncome = salaryAmount + checkingAccount + previousBalance + realIncomesTotal;
 
-    // Calcular gastos totais reais
+    // Calcular gastos totais reais (investimentos NÃO são gastos)
     const totalExpenses =
       realExpensesTotal +
       realCreditCardTotal +
-      realTaxesTotal +
-      realInvestmentsTotal;
+      realTaxesTotal;
 
     // Calcular saldo final real
     const finalBalance = totalIncome - totalExpenses;

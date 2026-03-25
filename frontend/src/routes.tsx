@@ -13,8 +13,10 @@ const Default = lazy(() => import("./pages/dashboard/index.tsx"));
 const Client = lazy(() => import("./pages/clients/index.tsx"));
 const Cards = lazy(() => import("./pages/cards/index.tsx"));
 const Expenses = lazy(() => import("./pages/expenses/index.tsx"));
+const Incomes = lazy(() => import("./pages/incomes/index.tsx"));
 const Investments = lazy(() => import("./pages/investments/index.tsx"));
 const Taxes = lazy(() => import("./pages/taxes/index.tsx"));
+const Imports = lazy(() => import("./pages/imports/index.tsx"));
 const MonthlyTracking = lazy(() => import("./pages/monthly-tracking/index.tsx"));
 const Settings = lazy(() => import("./pages/settings/index.tsx"));
 
@@ -97,6 +99,20 @@ const routes = [
     ],
   },
   {
+    path: "incomes",
+    element: (
+      <AuthGuard>
+        <DashboardLayout />
+      </AuthGuard>
+    ),
+    children: [
+      {
+        path: "",
+        element: <Incomes />,
+      },
+    ],
+  },
+  {
     path: "investments",
     element: (
       <AuthGuard>
@@ -121,6 +137,20 @@ const routes = [
       {
         path: "",
         element: <Taxes />,
+      },
+    ],
+  },
+  {
+    path: "imports",
+    element: (
+      <AuthGuard>
+        <DashboardLayout />
+      </AuthGuard>
+    ),
+    children: [
+      {
+        path: "",
+        element: <Imports />,
       },
     ],
   },

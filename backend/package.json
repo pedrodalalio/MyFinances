@@ -41,6 +41,7 @@
     "@fastify/cookie": "11.0.2",
     "@fastify/cors": "11.1.0",
     "@fastify/jwt": "9.1.0",
+    "@fastify/multipart": "9.4.0",
     "@prisma/client": "6.17.1",
     "bcryptjs": "3.0.2",
     "dayjs": "1.11.13",

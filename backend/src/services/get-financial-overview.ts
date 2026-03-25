@@ -3,6 +3,7 @@ import { SalaryProfilesRepository } from "@/repositories/salary-profiles-reposit
 import { CreditCardInstallmentsRepository } from "@/repositories/credit-card-installments-repository";
 import { CreditCardPurchasesRepository } from "@/repositories/credit-card-purchases-repository";
 import { ExpenseRepository } from "@/repositories/expense-repository";
+import { IncomeRepository } from "@/repositories/income-repository";
 import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { TransferBalanceToNextMonthService } from "./transfer-balance-to-next-month";
@@ -25,6 +26,7 @@ interface GetFinancialOverviewServiceResponse {
       total_expenses: number;
       final_balance: number;
       expense_subtotal: number;
+      income_subtotal: number;
       investment_subtotal: number;
       credit_card_subtotal: number;
       tax_subtotal: number;
@@ -52,6 +54,7 @@ export class GetFinancialOverviewService {
     private creditCardInstallmentsRepository: CreditCardInstallmentsRepository,
     private creditCardPurchasesRepository: CreditCardPurchasesRepository,
     private expenseRepository: ExpenseRepository,
+    private incomeRepository: IncomeRepository,
     private investmentRepository: InvestmentRepository,
     private taxRepository: TaxRepository,
     private transferBalanceService: TransferBalanceToNextMonthService,
@@ -105,6 +108,13 @@ export class GetFinancialOverviewService {
       year,
     );
 
+    // Buscar entradas extras do mês
+    const incomes = await this.incomeRepository.findByMonthAndUser(
+      userId,
+      month,
+      year,
+    );
+
     // Buscar investimentos mensais reais do mês
     const monthlyInvestments =
       await this.investmentRepository.findByMonthAndUser(
@@ -148,6 +158,12 @@ export class GetFinancialOverviewService {
       0,
     );
 
+    // Calcular total real das entradas extras
+    const realIncomesTotal = incomes.reduce(
+      (sum, income) => sum + Number(income.amount),
+      0,
+    );
+
     // Calcular total real dos investimentos mensais
     const realInvestmentsTotal = monthlyInvestments.reduce(
       (sum, investment) => sum + Number(investment.amount),
@@ -165,11 +181,12 @@ export class GetFinancialOverviewService {
     const checkingAccount = Number(financialData.checking_account);
     const previousBalance = Number(financialData.previous_balance);
 
-    // Calcular receita total dinamicamente - incluir salário se disponível
+    // Calcular receita total dinamicamente - incluir salário e entradas extras
     const salaryAmount = currentSalary
       ? Number(currentSalary.amount)
       : mainIncome;
-    const totalIncome = salaryAmount + checkingAccount + previousBalance;
+    const incomeSubtotal = realIncomesTotal;
+    const totalIncome = salaryAmount + checkingAccount + previousBalance + incomeSubtotal;
 
     // Usar dados reais do cartão, expenses, investimentos e impostos em vez dos stored values
     const creditCardSubtotal = realCreditCardTotal;
@@ -209,6 +226,7 @@ export class GetFinancialOverviewService {
           total_expenses: totalExpenses,
           final_balance: finalBalance,
           expense_subtotal: expenseSubtotal,
+          income_subtotal: incomeSubtotal,
           investment_subtotal: investmentSubtotal,
           credit_card_subtotal: creditCardSubtotal,
           tax_subtotal: taxSubtotal,
@@ -273,18 +291,51 @@ export class GetFinancialOverviewService {
       return; // Mês anterior ainda não foi confirmado
     }
 
-    // Calcular saldo do mês anterior
-    const previousBalance =
-      Number(previousMonthData.total_income) -
-      Number(previousMonthData.total_expenses);
+    // Calcular saldo do mês anterior DINAMICAMENTE (igual ao confirm-month)
+    const prevSalary = await this.salaryProfilesRepository.findCurrentByUser(userId);
+    const prevInstallments = await this.creditCardInstallmentsRepository.findManyByUserAndPeriod(userId, previousMonthStr, previousYear);
+    const prevRecurringPurchases = await this.creditCardPurchasesRepository.findManyByUser(userId);
+    const prevExpenses = await this.expenseRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
+    const prevIncomes = await this.incomeRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
+    const prevInvestments = await this.investmentRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
+    const prevTaxes = await this.taxRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
+
+    const activeRecurring = prevRecurringPurchases.filter((p) => {
+      if (!p.is_recurring) return false;
+      const startDate = new Date(p.start_year, parseInt(p.start_month) - 1);
+      const requestedDate = new Date(previousYear, parseInt(previousMonthStr) - 1);
+      return startDate <= requestedDate;
+    });
+
+    const creditCardTotal = prevInstallments.reduce((s, i) => s + Number(i.installment_amount), 0)
+      + activeRecurring.reduce((s, p) => s + Number(p.installment_amount), 0);
+    const expensesTotal = prevExpenses.reduce((s, e) => s + Number(e.amount), 0);
+    const incomesTotal = prevIncomes.reduce((s, i) => s + Number(i.amount), 0);
+    const investmentsTotal = prevInvestments.reduce((s, i) => s + Number(i.amount), 0);
+    const taxesTotal = prevTaxes.reduce((s, t) => s + Number(t.amount), 0);
+
+    const prevSalaryAmount = prevSalary ? Number(prevSalary.amount) : Number(previousMonthData.main_income);
+    const prevTotalIncome = prevSalaryAmount + Number(previousMonthData.checking_account) + Number(previousMonthData.previous_balance) + incomesTotal;
+    const prevTotalExpenses = expensesTotal + creditCardTotal + taxesTotal + investmentsTotal;
+    const previousBalance = prevTotalIncome - prevTotalExpenses;
 
     if (previousBalance > 0) {
-      // Transferir saldo automaticamente
-      await this.transferBalanceService.execute({
-        userId,
-        fromMonth: previousMonthStr,
-        fromYear: previousYear,
-      });
+      // Salvar diretamente no mês atual
+      if (currentMonthData) {
+        await this.financialDataRepository.update(currentMonthData.id, {
+          previous_balance: previousBalance,
+        });
+      } else {
+        await this.financialDataRepository.create({
+          user_id: userId,
+          month,
+          year,
+          main_income: 0,
+          checking_account: 0,
+          previous_balance: previousBalance,
+          total_in_account: 0,
+        });
+      }
     }
   }
 }

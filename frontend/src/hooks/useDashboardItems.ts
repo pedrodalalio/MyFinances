@@ -1,4 +1,4 @@
-import { Home, Settings, CreditCard, Calendar, Wallet, TrendingUp, FileText, PieChart } from "lucide-react";
+import { Home, Settings, CreditCard, Calendar, Wallet, TrendingUp, FileText, PieChart, ArrowDownLeft, Upload } from "lucide-react";
 
 interface DashboardItem {
   title: string;
@@ -25,6 +25,11 @@ const useDashboardItems = (): DashboardItem[] => {
       icon: Wallet,
     },
     {
+      title: "Entradas",
+      url: "/incomes",
+      icon: ArrowDownLeft,
+    },
+    {
       title: "Investimentos",
       url: "/investments",
       icon: TrendingUp,
@@ -33,6 +38,11 @@ const useDashboardItems = (): DashboardItem[] => {
       title: "Impostos",
       url: "/taxes",
       icon: FileText,
+    },
+    {
+      title: "Importações",
+      url: "/imports",
+      icon: Upload,
     },
     {
       title: "Fechamento",

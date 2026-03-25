@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, Wallet, Trash2, Edit } from "lucide-react";
+import { Plus, ArrowDownLeft, Trash2, Edit } from "lucide-react";
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
@@ -29,13 +29,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -55,15 +48,6 @@ const months = [
   { value: "12", label: "Dezembro" },
 ];
 
-
-const paymentMethods = [
-  { value: "PIX", label: "PIX" },
-  { value: "CASH", label: "Dinheiro" },
-  { value: "DEBIT_CARD", label: "Cartão de Débito" },
-  { value: "BANK_TRANSFER", label: "Transferência Bancária" },
-  { value: "OTHER", label: "Outro" },
-];
-
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
@@ -75,25 +59,25 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };
 
-const expenseSchema = z.object({
+const incomeSchema = z.object({
   name: z.string().min(1, "Nome é obrigatório"),
   description: z.string().optional(),
   amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
     message: "Valor deve ser um número positivo",
   }),
-  payment_method: z.string().min(1, "Método de pagamento é obrigatório"),
+  source: z.string().optional(),
   category: z.string().optional(),
   date: z.string().min(1, "Data é obrigatória"),
 });
 
-type ExpenseFormValues = z.infer<typeof expenseSchema>;
+type IncomeFormValues = z.infer<typeof incomeSchema>;
 
-interface Expense {
+interface Income {
   id: string;
   name: string;
   description?: string;
   amount: string;
-  payment_method: string;
+  source?: string;
   category?: string;
   month: string;
   year: number;
@@ -101,11 +85,11 @@ interface Expense {
   created_at: string;
 }
 
-const ExpensesPage = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+const IncomesPage = () => {
+  const [incomes, setIncomes] = useState<Income[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, "0")}`;
@@ -130,41 +114,41 @@ const ExpensesPage = () => {
   })();
 
   useEffect(() => {
-    document.title = "Gastos | MyFinances";
-    loadExpenses();
+    document.title = "Entradas | MyFinances";
+    loadIncomes();
   }, [selectedPeriod]);
 
-  const form = useForm<ExpenseFormValues>({
-    resolver: zodResolver(expenseSchema),
+  const form = useForm<IncomeFormValues>({
+    resolver: zodResolver(incomeSchema),
     defaultValues: {
       name: "",
       description: "",
       amount: "",
-      payment_method: "PIX",
+      source: "",
       category: "",
       date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
     },
   });
 
-  const loadExpenses = async () => {
+  const loadIncomes = async () => {
     try {
       const month = selectedMonth.toString().padStart(2, "0");
-      const response = await api.get(`/expenses/${month}/${selectedYear}`);
-      setExpenses(response.data.expenses || []);
+      const response = await api.get(`/incomes/${month}/${selectedYear}`);
+      setIncomes(response.data.incomes || []);
     } catch (error) {
-      console.error("Erro ao carregar gastos:", error);
+      console.error("Erro ao carregar entradas:", error);
     }
   };
 
-  const onSubmit = async (values: ExpenseFormValues) => {
-    if (editingExpense) {
-      await updateExpense(values);
+  const onSubmit = async (values: IncomeFormValues) => {
+    if (editingIncome) {
+      await updateIncome(values);
     } else {
-      await createExpense(values);
+      await createIncome(values);
     }
   };
 
-  const createExpense = async (values: ExpenseFormValues) => {
+  const createIncome = async (values: IncomeFormValues) => {
     setLoading(true);
     try {
       const [yearStr, monthStr] = values.date.split("-");
@@ -172,39 +156,39 @@ const ExpensesPage = () => {
         name: values.name,
         description: values.description,
         amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        payment_method: values.payment_method,
+        source: values.source,
         category: values.category,
         month: monthStr,
         year: parseInt(yearStr),
         date: values.date,
       };
 
-      await api.post("/expenses", requestBody);
+      await api.post("/incomes", requestBody);
       setIsDialogOpen(false);
       form.reset();
-      loadExpenses();
+      loadIncomes();
     } catch (error) {
-      console.error("Erro ao criar gasto:", error);
+      console.error("Erro ao criar entrada:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const editExpense = (expense: Expense) => {
-    setEditingExpense(expense);
+  const editIncome = (income: Income) => {
+    setEditingIncome(income);
     form.reset({
-      name: expense.name,
-      description: expense.description || "",
-      amount: parseFloat(expense.amount).toFixed(2),
-      payment_method: expense.payment_method,
-      category: expense.category || "",
-      date: expense.date.split("T")[0],
+      name: income.name,
+      description: income.description || "",
+      amount: parseFloat(income.amount).toFixed(2),
+      source: income.source || "",
+      category: income.category || "",
+      date: income.date.split("T")[0],
     });
     setIsDialogOpen(true);
   };
 
-  const updateExpense = async (values: ExpenseFormValues) => {
-    if (!editingExpense) return;
+  const updateIncome = async (values: IncomeFormValues) => {
+    if (!editingIncome) return;
 
     setLoading(true);
     try {
@@ -213,41 +197,36 @@ const ExpensesPage = () => {
         name: values.name,
         description: values.description,
         amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        payment_method: values.payment_method,
+        source: values.source,
         category: values.category,
         month: monthStr,
         year: parseInt(yearStr),
         date: values.date,
       };
 
-      await api.put(`/expenses/${editingExpense.id}`, requestBody);
+      await api.put(`/incomes/${editingIncome.id}`, requestBody);
       setIsDialogOpen(false);
-      setEditingExpense(null);
+      setEditingIncome(null);
       form.reset();
-      loadExpenses();
+      loadIncomes();
     } catch (error) {
-      console.error("Erro ao atualizar gasto:", error);
+      console.error("Erro ao atualizar entrada:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteExpense = async (id: string) => {
+  const deleteIncome = async (id: string) => {
     try {
-      await api.delete(`/expenses/${id}`);
-      loadExpenses();
+      await api.delete(`/incomes/${id}`);
+      loadIncomes();
     } catch (error) {
-      console.error("Erro ao deletar gasto:", error);
+      console.error("Erro ao deletar entrada:", error);
     }
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    const paymentMethod = paymentMethods.find((p) => p.value === method);
-    return paymentMethod ? paymentMethod.label : method;
-  };
-
-  const totalExpenses = expenses.reduce(
-    (sum, expense) => sum + parseFloat(expense.amount),
+  const totalIncomes = incomes.reduce(
+    (sum, income) => sum + parseFloat(income.amount),
     0,
   );
 
@@ -255,9 +234,9 @@ const ExpensesPage = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Gastos</h1>
+          <h1 className="text-3xl font-bold">Entradas</h1>
           <p className="text-muted-foreground">
-            Gerencie seus gastos simples (PIX, dinheiro, etc.)
+            Gerencie suas entradas extras (freelances, presentes, devoluções, etc.)
           </p>
         </div>
 
@@ -265,7 +244,7 @@ const ExpensesPage = () => {
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
-              Novo Gasto
+              Nova Entrada
             </Button>
           </DialogTrigger>
           <DialogContent
@@ -274,12 +253,12 @@ const ExpensesPage = () => {
           >
             <DialogHeader>
               <DialogTitle>
-                {editingExpense ? "Editar Gasto" : "Adicionar Gasto"}
+                {editingIncome ? "Editar Entrada" : "Adicionar Entrada"}
               </DialogTitle>
               <DialogDescription>
-                {editingExpense
-                  ? "Edite as informações do seu gasto."
-                  : "Adicione um novo gasto simples."}
+                {editingIncome
+                  ? "Edite as informações da sua entrada."
+                  : "Adicione uma nova entrada de dinheiro."}
               </DialogDescription>
             </DialogHeader>
 
@@ -293,10 +272,10 @@ const ExpensesPage = () => {
                   name="name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Nome do Gasto</FormLabel>
+                      <FormLabel>Nome da Entrada</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Ex: Almoço, Transporte..."
+                          placeholder="Ex: Freelance, Presente, Devolução..."
                           {...field}
                         />
                       </FormControl>
@@ -313,7 +292,7 @@ const ExpensesPage = () => {
                       <FormLabel>Descrição (opcional)</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder="Detalhes sobre o gasto..."
+                          placeholder="Detalhes sobre a entrada..."
                           {...field}
                         />
                       </FormControl>
@@ -344,30 +323,16 @@ const ExpensesPage = () => {
 
                   <FormField
                     control={form.control}
-                    name="payment_method"
+                    name="source"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Forma de Pagamento</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {paymentMethods.map((method) => (
-                              <SelectItem
-                                key={method.value}
-                                value={method.value}
-                              >
-                                {method.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormLabel>Origem (opcional)</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="Ex: Pai, Cliente, Amigo..."
+                            {...field}
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -396,7 +361,7 @@ const ExpensesPage = () => {
                       <FormLabel>Categoria (opcional)</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder="Ex: Alimentação, Transporte..."
+                          placeholder="Ex: Freelance, Presente, Devolução..."
                           {...field}
                         />
                       </FormControl>
@@ -411,12 +376,12 @@ const ExpensesPage = () => {
                     variant="outline"
                     onClick={() => {
                       setIsDialogOpen(false);
-                      setEditingExpense(null);
+                      setEditingIncome(null);
                       form.reset({
                         name: "",
                         description: "",
                         amount: "",
-                        payment_method: "PIX",
+                        source: "",
                         category: "",
                         date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
                       });
@@ -426,10 +391,10 @@ const ExpensesPage = () => {
                   </Button>
                   <Button type="submit" disabled={loading}>
                     {loading
-                      ? editingExpense
+                      ? editingIncome
                         ? "Atualizando..."
                         : "Salvando..."
-                      : editingExpense
+                      : editingIncome
                         ? "Atualizar"
                         : "Salvar"}
                   </Button>
@@ -469,58 +434,58 @@ const ExpensesPage = () => {
         </div>
       </div>
 
-      {/* Total de gastos do mês */}
-      {expenses.length > 0 && (
+      {/* Total de entradas do mês */}
+      {incomes.length > 0 && (
         <Card>
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Total de gastos no mês</span>
+              <ArrowDownLeft className="h-5 w-5 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Total de entradas no mês</span>
             </div>
-            <span className="text-2xl font-bold text-red-500">
-              R$ {formatCurrency(totalExpenses)}
+            <span className="text-2xl font-bold text-green-500">
+              R$ {formatCurrency(totalIncomes)}
             </span>
           </CardContent>
         </Card>
       )}
 
       <div className="grid gap-4">
-        {expenses.length === 0 ? (
+        {incomes.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
-              <Wallet className="h-12 w-12 text-muted-foreground mb-4" />
+              <ArrowDownLeft className="h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">
-                Nenhum gasto cadastrado
+                Nenhuma entrada cadastrada
               </h3>
               <p className="text-muted-foreground text-center mb-4">
-                Comece adicionando seus gastos simples para acompanhar suas
+                Comece adicionando suas entradas extras para acompanhar suas
                 finanças.
               </p>
               <Button onClick={() => setIsDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Adicionar Primeiro Gasto
+                Adicionar Primeira Entrada
               </Button>
             </CardContent>
           </Card>
         ) : (
-          expenses.map((expense) => (
-            <Card key={expense.id}>
+          incomes.map((income) => (
+            <Card key={income.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      <Wallet className="h-5 w-5" />
-                      {expense.name}
+                      <ArrowDownLeft className="h-5 w-5 text-green-500" />
+                      {income.name}
                     </CardTitle>
-                    {expense.description && (
-                      <CardDescription>{expense.description}</CardDescription>
+                    {income.description && (
+                      <CardDescription>{income.description}</CardDescription>
                     )}
                   </div>
                   <div className="flex gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => editExpense(expense)}
+                      onClick={() => editIncome(income)}
                       className="text-blue-500 hover:text-blue-700"
                     >
                       <Edit className="h-4 w-4" />
@@ -528,7 +493,7 @@ const ExpensesPage = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteExpense(expense.id)}
+                      onClick={() => deleteIncome(income.id)}
                       className="text-red-500 hover:text-red-700"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -540,34 +505,34 @@ const ExpensesPage = () => {
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Valor</p>
-                    <p className="font-semibold">
-                      R$ {formatCurrency(parseFloat(expense.amount))}
+                    <p className="font-semibold text-green-500">
+                      R$ {formatCurrency(parseFloat(income.amount))}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Forma de Pagamento</p>
-                    <p className="font-semibold">
-                      {getPaymentMethodLabel(expense.payment_method)}
-                    </p>
-                  </div>
+                  {income.source && (
+                    <div>
+                      <p className="text-muted-foreground">Origem</p>
+                      <p className="font-semibold">{income.source}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-muted-foreground">Data</p>
-                    <p className="font-semibold">{formatDate(expense.date)}</p>
+                    <p className="font-semibold">{formatDate(income.date)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Período</p>
                     <p className="font-semibold">
-                      {expense.month}/{expense.year}
+                      {income.month}/{income.year}
                     </p>
                   </div>
                 </div>
                 <div className="mt-3 flex gap-2">
-                  {expense.category && (
-                    <Badge variant="secondary">{expense.category}</Badge>
+                  {income.category && (
+                    <Badge variant="secondary">{income.category}</Badge>
                   )}
-                  <Badge variant="outline">
-                    {getPaymentMethodLabel(expense.payment_method)}
-                  </Badge>
+                  {income.source && (
+                    <Badge variant="outline">{income.source}</Badge>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -578,4 +543,4 @@ const ExpensesPage = () => {
   );
 };
 
-export default ExpensesPage;
+export default IncomesPage;

@@ -1,14 +1,17 @@
 import fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import fastifyCors from "@fastify/cors";
+import fastifyMultipart from "@fastify/multipart";
 import { usersRoutes } from "./http/controllers/users/routes";
 import { financialDataRoutes } from "./http/controllers/financial-data/routes";
 import { transactionsRoutes } from "./http/controllers/transactions/routes";
 import { creditCardRoutes } from "./http/controllers/credit-card/routes";
 import { salaryRoutes } from "./http/controllers/salary/routes";
 import { expensesRoutes } from "./http/controllers/expenses/routes";
+import { incomesRoutes } from "./http/controllers/incomes/routes";
 import { monthlyInvestmentsRoutes } from "./http/controllers/monthly-investments/routes";
 import { taxesRoutes } from "./http/controllers/taxes/routes";
+import { importsRoutes } from "./http/controllers/imports/routes";
 import { dashboardRoutes } from "./http/controllers/dashboard/routes";
 import { ZodError } from "zod";
 import { env } from "./env";
@@ -37,6 +40,11 @@ app.register(fastifyJwt, {
 });
 
 app.register(fastifyCookie);
+app.register(fastifyMultipart, {
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+});
 
 app.register(usersRoutes);
 app.register(financialDataRoutes);
@@ -44,8 +52,10 @@ app.register(transactionsRoutes);
 app.register(creditCardRoutes);
 app.register(salaryRoutes);
 app.register(expensesRoutes);
+app.register(incomesRoutes);
 app.register(monthlyInvestmentsRoutes);
 app.register(taxesRoutes);
+app.register(importsRoutes);
 app.register(dashboardRoutes);
 
 app.setErrorHandler((error, _, reply) => {
