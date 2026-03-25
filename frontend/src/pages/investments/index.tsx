@@ -266,15 +266,15 @@ const UnifiedInvestmentsPage = () => {
         category: values.category,
         month: currentDate.month,
         year: currentDate.year,
-        date: values.date,
+        date: values.date || undefined,
         purchase_date: values.purchase_date || undefined,
         maturity_date: values.maturity_date || undefined,
         interest_rate: values.interest_rate
           ? parseFloat(values.interest_rate)
           : undefined,
         quantity: values.quantity ? parseFloat(values.quantity) : undefined,
-        broker: values.broker,
-        notes: values.notes,
+        broker: values.broker || undefined,
+        notes: values.notes || undefined,
       };
 
       await api.post("/monthly-investments", requestBody);
@@ -306,15 +306,15 @@ const UnifiedInvestmentsPage = () => {
           : undefined,
         investment_type: values.investment_type,
         category: values.category,
-        date: values.date || editingInvestment.date,
+        date: values.date || undefined,
         purchase_date: values.purchase_date || undefined,
         maturity_date: values.maturity_date || undefined,
         interest_rate: values.interest_rate
           ? parseFloat(values.interest_rate)
           : undefined,
         quantity: values.quantity ? parseFloat(values.quantity) : undefined,
-        broker: values.broker,
-        notes: values.notes,
+        broker: values.broker || undefined,
+        notes: values.notes || undefined,
       };
 
       await api.put(

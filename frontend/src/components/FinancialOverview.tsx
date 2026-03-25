@@ -310,30 +310,34 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gastos Totais</CardTitle>
+            <CardTitle className="text-sm font-medium">Saídas Totais</CardTitle>
             <TrendingDown className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {formatCurrency(financial_data.total_expenses)}
+              {formatCurrency(financial_data.total_expenses + financial_data.investment_subtotal)}
             </div>
-            <div className="flex items-center space-x-2 mt-1">
-              <span className="text-xs text-muted-foreground">
-                {formatPercentage(analysis.expense_percentage)} da receita
-              </span>
-              {analysis.is_over_budget && (
-                <Badge variant="destructive" className="text-xs">
-                  Acima do orçamento
-                </Badge>
+            <div className="text-xs text-muted-foreground mt-1 space-y-1">
+              <div>Gastos: {formatCurrency(financial_data.total_expenses)}</div>
+              {financial_data.investment_subtotal > 0 && (
+                <div>Investimentos: {formatCurrency(financial_data.investment_subtotal)}</div>
               )}
+              <div>
+                {formatPercentage(analysis.expense_percentage)} da receita em gastos
+              </div>
             </div>
+            {analysis.is_over_budget && (
+              <Badge variant="destructive" className="text-xs mt-2">
+                Acima do orçamento
+              </Badge>
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
-              Saldo Disponível
+              Saldo em Conta
             </CardTitle>
             {analysis.monthly_surplus_deficit >= 0 ? (
               <TrendingUp className="h-4 w-4 text-green-600" />
@@ -352,8 +356,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               {formatCurrency(analysis.available_amount)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              {analysis.monthly_surplus_deficit >= 0 ? "Superávit" : "Déficit"}{" "}
-              de {formatCurrency(Math.abs(analysis.monthly_surplus_deficit))}
+              Receita - Gastos - Investimentos
             </p>
           </CardContent>
         </Card>
@@ -391,7 +394,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Investido:</span>
-                <span className="font-medium text-green-600">
+                <span className="font-medium text-blue-600">
                   {formatCurrency(financial_data.investment_subtotal)}
                 </span>
               </div>
@@ -415,9 +418,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             </div>
 
             <div className="text-xs text-muted-foreground pt-1 border-t">
-              Calculado: {formatCurrency(analysis.reserve_amount)} ÷ {formatCurrency(displayTotalIncome)} × 100
-              <br />
-              <span className="text-green-600">* Investimentos não são considerados gastos</span>
+              Saldo em conta após gastos e investimentos
             </div>
           </CardContent>
         </Card>
@@ -539,13 +540,13 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 {financial_data.investment_subtotal > 0 && (
                   <div className="flex justify-between">
                     <span>Investimentos:</span>
-                    <span className="font-medium text-green-600">
+                    <span className="font-medium text-blue-600">
                       {formatCurrency(financial_data.investment_subtotal)}
                     </span>
                   </div>
                 )}
                 <div className="flex justify-between border-t pt-2">
-                  <span>Resultado:</span>
+                  <span>Saldo em conta:</span>
                   <span
                     className={`font-bold ${
                       analysis.monthly_surplus_deficit >= 0

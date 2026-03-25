@@ -193,9 +193,16 @@ export class GetFinancialOverviewService {
     const expenseSubtotal = realExpensesTotal;
     const investmentSubtotal = realInvestmentsTotal;
     const taxSubtotal = realTaxesTotal;
-    const totalExpenses =
-      expenseSubtotal + creditCardSubtotal + taxSubtotal;
-    const finalBalance = totalIncome - totalExpenses;
+
+    // Gastos = despesas + cartão + impostos (para exibição)
+    const totalExpenses = expenseSubtotal + creditCardSubtotal + taxSubtotal;
+
+    // Saídas totais = gastos + investimentos (tudo que saiu da conta corrente)
+    const totalOutflows = totalExpenses + investmentSubtotal;
+
+    // Saldo disponível em conta corrente = receita - tudo que saiu
+    const availableAmount = totalIncome - totalOutflows;
+    const finalBalance = availableAmount;
 
     // Usar salário como referência para cálculos se disponível, senão usar receita total
     const referenceIncome = currentSalary
@@ -206,15 +213,13 @@ export class GetFinancialOverviewService {
     const expensePercentage =
       referenceIncome > 0 ? (totalExpenses / referenceIncome) * 100 : 0;
 
-    // Taxa de reserva: excluir investimentos (investir é positivo, não gasto)
-    const expensesWithoutInvestments = expenseSubtotal + creditCardSubtotal + taxSubtotal;
-    const reserveAmount = totalIncome - expensesWithoutInvestments;
+    // Taxa de reserva: quanto sobrou na conta após gastos e investimentos
+    const reserveAmount = availableAmount;
     const reservePercentage =
       totalIncome > 0 ? (reserveAmount / totalIncome) * 100 : 0;
 
-    const availableAmount = totalIncome - totalExpenses; // Usar receita total, não referência
-    const isOverBudget = totalExpenses > totalIncome; // Comparar com receita total
-    const monthlySurplusDeficit = totalIncome - totalExpenses; // Usar receita total
+    const isOverBudget = totalOutflows > totalIncome;
+    const monthlySurplusDeficit = availableAmount;
 
     return {
       overview: {

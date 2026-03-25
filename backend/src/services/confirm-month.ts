@@ -126,14 +126,14 @@ export class ConfirmMonthService {
       : mainIncome;
     const totalIncome = salaryAmount + checkingAccount + previousBalance + realIncomesTotal;
 
-    // Calcular gastos totais reais (investimentos NÃO são gastos)
+    // Calcular gastos totais reais
     const totalExpenses =
       realExpensesTotal +
       realCreditCardTotal +
       realTaxesTotal;
 
-    // Calcular saldo final real
-    const finalBalance = totalIncome - totalExpenses;
+    // Calcular saldo final real (investimentos saem da conta corrente)
+    const finalBalance = totalIncome - totalExpenses - realInvestmentsTotal;
 
     // Calcular próximo mês e ano
     const currentMonthInt = parseInt(month);
