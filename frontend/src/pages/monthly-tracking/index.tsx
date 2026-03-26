@@ -154,6 +154,10 @@ interface Investment {
   category?: string;
   expected_return?: number;
   date: string;
+  purchase_date?: string;
+  maturity_date?: string;
+  interest_rate?: number;
+  broker?: string;
 }
 
 interface InvestmentsData {
@@ -851,11 +855,13 @@ const MonthlyTrackingPage = () => {
                             </div>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {new Date(investment.date).toLocaleDateString(
-                            "pt-BR", { timeZone: "UTC" },
-                          )}
-                        </div>
+                        {investment.purchase_date && (
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(investment.purchase_date).toLocaleDateString(
+                              "pt-BR", { timeZone: "UTC" },
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))

@@ -9,11 +9,10 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
         name: data.name,
         description: data.description,
         amount: data.amount,
+        net_value: data.netValue,
         gross_yield: data.grossYield,
         investment_type: data.investmentType,
         category: data.category,
-        month: data.month,
-        year: data.year,
         date: data.date,
         purchase_date: data.purchaseDate,
         maturity_date: data.maturityDate,
@@ -30,14 +29,20 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
   }
 
   async findByMonthAndUser(userId: string, month: string, year: number): Promise<Investment[]> {
+    const monthInt = parseInt(month)
+    const startDate = new Date(Date.UTC(year, monthInt - 1, 1))
+    const endDate = new Date(Date.UTC(year, monthInt, 1))
+
     const investments = await prisma.investment.findMany({
       where: {
         user_id: userId,
-        month,
-        year
+        purchase_date: {
+          gte: startDate,
+          lt: endDate
+        }
       },
       orderBy: {
-        date: 'desc'
+        purchase_date: 'desc'
       }
     })
 
@@ -60,11 +65,10 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
     if (data.name !== undefined) updateData.name = data.name
     if (data.description !== undefined) updateData.description = data.description
     if (data.amount !== undefined) updateData.amount = data.amount
+    if (data.netValue !== undefined) updateData.net_value = data.netValue
     if (data.grossYield !== undefined) updateData.gross_yield = data.grossYield
     if (data.investmentType !== undefined) updateData.investment_type = data.investmentType
     if (data.category !== undefined) updateData.category = data.category
-    if (data.month !== undefined) updateData.month = data.month
-    if (data.year !== undefined) updateData.year = data.year
     if (data.date !== undefined) updateData.date = data.date
     if (data.purchaseDate !== undefined) updateData.purchase_date = data.purchaseDate
     if (data.maturityDate !== undefined) updateData.maturity_date = data.maturityDate

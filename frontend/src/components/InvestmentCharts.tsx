@@ -24,7 +24,10 @@ interface Investment {
   investment_type: string;
   initial_investment?: number;
   gross_yield?: number;
+  net_value?: number;
   amount: number;
+  interest_rate?: number;
+  broker?: string;
   purchase_date?: string;
 }
 
@@ -65,7 +68,10 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   investments
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
-  const [viewMode, setViewMode] = useState<"type" | "individual">("type");
+  const [viewMode, setViewMode] = useState<"type" | "rate" | "individual">("rate");
+
+  // Quando muda o filtro, ajustar o viewMode automaticamente
+  const effectiveViewMode = selectedFilter === "all" ? "rate" : viewMode;
 
   // Filtrar investimentos baseado na seleção
   const filteredInvestments = React.useMemo(() => {
@@ -80,25 +86,28 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   }, [investments]);
   // Dados para distribuição
   const distributionData = React.useMemo(() => {
-    if (viewMode === "type") {
-      // Distribuição por tipo de investimento
+    if (effectiveViewMode === "type") {
       const typeMap = new Map<string, number>();
-
       filteredInvestments.forEach(investment => {
         const type = getInvestmentTypeLabel(investment.investment_type);
         const value = investment.gross_yield || investment.amount;
-        const current = typeMap.get(type) || 0;
-        typeMap.set(type, current + Number(value));
+        typeMap.set(type, (typeMap.get(type) || 0) + Number(value));
       });
-
       return Array.from(typeMap.entries()).map(([name, value]) => ({
-        name,
-        fullName: name,
-        value,
-        percentage: 0
+        name, fullName: name, value, percentage: 0
+      }));
+    } else if (effectiveViewMode === "rate") {
+      const rateMap = new Map<string, number>();
+      filteredInvestments.forEach(investment => {
+        const rate = investment.interest_rate != null ? `${investment.interest_rate}%` : "Sem taxa";
+        const label = `${getInvestmentTypeLabel(investment.investment_type)} ${rate}`;
+        const value = investment.gross_yield || investment.amount;
+        rateMap.set(label, (rateMap.get(label) || 0) + Number(value));
+      });
+      return Array.from(rateMap.entries()).map(([name, value]) => ({
+        name, fullName: name, value, percentage: 0
       }));
     } else {
-      // Distribuição por investimento individual
       return filteredInvestments.map((investment) => ({
         name: investment.name.length > 20 ? investment.name.substring(0, 20) + '...' : investment.name,
         fullName: investment.name,
@@ -107,7 +116,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         investmentId: investment.id
       }));
     }
-  }, [filteredInvestments, viewMode]);
+  }, [filteredInvestments, effectiveViewMode]);
 
   // Calcular percentuais
   const totalValue = distributionData.reduce((sum, item) => sum + Number(item.value), 0);
@@ -121,6 +130,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
     return filteredInvestments.map(investment => {
       const initialValue = Number(investment.amount);
       const currentValue = Number(investment.gross_yield || investment.amount);
+      const netValue = Number(investment.net_value || investment.gross_yield || investment.amount);
       const profit = currentValue - initialValue;
       const profitPercentage = initialValue > 0 ? (profit / initialValue) * 100 : 0;
 
@@ -128,11 +138,49 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         name: investment.name.length > 15 ? investment.name.substring(0, 15) + '...' : investment.name,
         fullName: investment.name,
         investido: initialValue,
-        atual: currentValue,
+        bruto: currentValue,
+        liquido: netValue,
         rentabilidade: profitPercentage,
       };
     });
   }, [filteredInvestments]);
+
+  // Dados agrupados por taxa para gráfico de barras e tabela
+  const groupedByRate = React.useMemo(() => {
+    const groups = new Map<string, { label: string; investido: number; bruto: number; liquido: number; count: number }>();
+    filteredInvestments.forEach((inv) => {
+      const rate = inv.interest_rate != null ? `${inv.interest_rate}%` : "Sem taxa";
+      const label = `${getInvestmentTypeLabel(inv.investment_type)} ${rate}`;
+      const existing = groups.get(label);
+      const amount = Number(inv.amount);
+      const gross = Number(inv.gross_yield || inv.amount);
+      const net = Number(inv.net_value || inv.gross_yield || inv.amount);
+      if (existing) {
+        existing.investido += amount;
+        existing.bruto += gross;
+        existing.liquido += net;
+        existing.count++;
+      } else {
+        groups.set(label, { label, investido: amount, bruto: gross, liquido: net, count: 1 });
+      }
+    });
+    return Array.from(groups.values()).sort((a, b) => b.investido - a.investido);
+  }, [filteredInvestments]);
+
+  // Dados para barras: agrupado quando "rate", individual quando não
+  const barChartData = React.useMemo(() => {
+    if (effectiveViewMode === "rate") {
+      return groupedByRate.map((g) => ({
+        name: g.label.length > 20 ? g.label.substring(0, 20) + '...' : g.label,
+        fullName: g.label,
+        investido: g.investido,
+        bruto: g.bruto,
+        liquido: g.liquido,
+        rentabilidade: g.investido > 0 ? ((g.bruto - g.investido) / g.investido) * 100 : 0,
+      }));
+    }
+    return profitabilityData;
+  }, [effectiveViewMode, groupedByRate, profitabilityData]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -141,7 +189,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
           <p className="font-medium">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} style={{ color: entry.color }}>
-              {entry.dataKey === 'value' || entry.dataKey === 'investido' || entry.dataKey === 'atual'
+              {entry.dataKey === 'value' || entry.dataKey === 'investido' || entry.dataKey === 'bruto' || entry.dataKey === 'liquido'
                 ? formatCurrency(entry.value)
                 : entry.dataKey === 'rentabilidade'
                 ? `${entry.value.toFixed(2)}%`
@@ -216,22 +264,31 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
             </SelectContent>
           </Select>
 
-          <div className="flex gap-2">
-            <Button
-              variant={viewMode === "type" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("type")}
-            >
-              Por Tipo
-            </Button>
-            <Button
-              variant={viewMode === "individual" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("individual")}
-            >
-              Individual
-            </Button>
-          </div>
+          {selectedFilter !== "all" && (
+            <div className="flex gap-2">
+              <Button
+                variant={viewMode === "type" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("type")}
+              >
+                Por Tipo
+              </Button>
+              <Button
+                variant={viewMode === "rate" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("rate")}
+              >
+                Por Taxa
+              </Button>
+              <Button
+                variant={viewMode === "individual" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("individual")}
+              >
+                Individual
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -240,7 +297,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         <Card>
           <CardHeader>
             <CardTitle>
-              {viewMode === "type" ? "Distribuição por Tipo" : "Distribuição por Investimento"}
+              {effectiveViewMode === "type" ? "Distribuição por Tipo" : effectiveViewMode === "rate" ? "Distribuição por Taxa" : "Distribuição por Investimento"}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -252,7 +309,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                   cy="50%"
                   labelLine={false}
                   label={({ percentage }) => percentage > 5 ? `${percentage.toFixed(1)}%` : ''}
-                  outerRadius={viewMode === "individual" ? 60 : 80}
+                  outerRadius={effectiveViewMode === "type" ? 80 : 60}
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -263,14 +320,14 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                 <Tooltip content={<PieTooltip />} />
                 <Legend
                   verticalAlign="bottom"
-                  height={viewMode === "individual" ? 120 : 80}
+                  height={effectiveViewMode === "type" ? 80 : 120}
                   formatter={(value: string, entry: any) => {
                     const data = distributionDataWithPercentage.find(item => item.name === value);
                     return `${data?.fullName || value}`;
                   }}
                   wrapperStyle={{
                     paddingTop: "20px",
-                    fontSize: viewMode === "individual" ? "10px" : "12px",
+                    fontSize: effectiveViewMode === "type" ? "12px" : "10px",
                     lineHeight: "14px"
                   }}
                 />
@@ -286,7 +343,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={profitabilityData}>
+              <BarChart data={barChartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="name"
@@ -304,15 +361,15 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         </Card>
       </div>
 
-      {/* Gráfico de Barras Comparativo - Valor Investido vs Atual */}
-      {profitabilityData.length > 0 && (
+      {/* Gráfico de Barras Comparativo - Investido vs Bruto vs Líquido */}
+      {barChartData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Valor Investido vs Valor Atual</CardTitle>
+            <CardTitle>Investido vs Bruto vs Líquido</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={profitabilityData} margin={{ bottom: 80 }}>
+              <BarChart data={barChartData} margin={{ bottom: 80 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="name"
@@ -323,8 +380,10 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                 />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="investido" fill="#82ca9d" name="Investido" />
-                <Bar dataKey="atual" fill="#8884d8" name="Atual" />
+                <Legend />
+                <Bar dataKey="investido" fill="#94a3b8" name="Investido" />
+                <Bar dataKey="bruto" fill="#8884d8" name="Bruto" />
+                <Bar dataKey="liquido" fill="#22c55e" name="Líquido" />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -338,45 +397,93 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left p-2">Investimento</th>
-                  <th className="text-right p-2">Tipo</th>
-                  <th className="text-right p-2">Valor Investido</th>
-                  <th className="text-right p-2">Valor Atual</th>
-                  <th className="text-right p-2">Retorno</th>
-                  <th className="text-right p-2">%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredInvestments.map((investment) => {
-                  const initialValue = Number(investment.amount);
-                  const currentValue = Number(investment.gross_yield || investment.amount);
-                  const totalReturn = currentValue - initialValue;
-                  const returnPercentage = initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
+            {effectiveViewMode === "rate" ? (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Grupo</th>
+                    <th className="text-right p-2">Qtd</th>
+                    <th className="text-right p-2">Aplicado</th>
+                    <th className="text-right p-2">Bruto</th>
+                    <th className="text-right p-2">Líquido</th>
+                    <th className="text-right p-2">Retorno</th>
+                    <th className="text-right p-2">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedByRate.map((group) => {
+                    const totalReturn = group.bruto - group.investido;
+                    const returnPercentage = group.investido > 0 ? (totalReturn / group.investido) * 100 : 0;
+                    return (
+                      <tr key={group.label} className="border-b hover:bg-muted/50">
+                        <td className="p-2 font-medium">{group.label}</td>
+                        <td className="text-right p-2">{group.count}</td>
+                        <td className="text-right p-2">{formatCurrency(group.investido)}</td>
+                        <td className="text-right p-2">{formatCurrency(group.bruto)}</td>
+                        <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(group.liquido)}</td>
+                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(totalReturn)}
+                        </td>
+                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {returnPercentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left p-2">Investimento</th>
+                    <th className="text-right p-2">Tipo</th>
+                    <th className="text-right p-2">Corretora</th>
+                    <th className="text-right p-2">Taxa</th>
+                    <th className="text-right p-2">Aplicado</th>
+                    <th className="text-right p-2">Bruto</th>
+                    <th className="text-right p-2">Líquido</th>
+                    <th className="text-right p-2">Retorno</th>
+                    <th className="text-right p-2">%</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredInvestments.map((investment) => {
+                    const initialValue = Number(investment.amount);
+                    const currentValue = Number(investment.gross_yield || investment.amount);
+                    const netValue = Number(investment.net_value || investment.gross_yield || investment.amount);
+                    const totalReturn = currentValue - initialValue;
+                    const returnPercentage = initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
 
-                  return (
-                    <tr key={investment.id} className="border-b">
-                      <td className="p-2 font-medium">{investment.name}</td>
-                      <td className="text-right p-2">
-                        <span className="text-xs bg-muted px-2 py-1 rounded">
-                          {getInvestmentTypeLabel(investment.investment_type)}
-                        </span>
-                      </td>
-                      <td className="text-right p-2">{formatCurrency(initialValue)}</td>
-                      <td className="text-right p-2">{formatCurrency(currentValue)}</td>
-                      <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {formatCurrency(totalReturn)}
-                      </td>
-                      <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {returnPercentage.toFixed(2)}%
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                    return (
+                      <tr key={investment.id} className="border-b hover:bg-muted/50">
+                        <td className="p-2 font-medium">{investment.name}</td>
+                        <td className="text-right p-2">
+                          <span className="text-xs bg-muted px-2 py-1 rounded">
+                            {getInvestmentTypeLabel(investment.investment_type)}
+                          </span>
+                        </td>
+                        <td className="text-right p-2 text-xs text-muted-foreground">
+                          {investment.broker || "—"}
+                        </td>
+                        <td className="text-right p-2 text-xs text-muted-foreground">
+                          {investment.interest_rate != null ? `${investment.interest_rate}%` : "—"}
+                        </td>
+                        <td className="text-right p-2">{formatCurrency(initialValue)}</td>
+                        <td className="text-right p-2">{formatCurrency(currentValue)}</td>
+                        <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(netValue)}</td>
+                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {formatCurrency(totalReturn)}
+                        </td>
+                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {returnPercentage.toFixed(2)}%
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </CardContent>
       </Card>

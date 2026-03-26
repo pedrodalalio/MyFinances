@@ -51,8 +51,11 @@ export async function upload(request: FastifyRequest, reply: FastifyReply) {
     where: { user_id: userId, month, year: yearNum },
     select: { name: true, amount: true, date: true },
   })
+  const monthInt = parseInt(month)
+  const investmentStartDate = new Date(Date.UTC(yearNum, monthInt - 1, 1))
+  const investmentEndDate = new Date(Date.UTC(yearNum, monthInt, 1))
   const existingInvestments = await prisma.investment.findMany({
-    where: { user_id: userId, month, year: yearNum },
+    where: { user_id: userId, purchase_date: { gte: investmentStartDate, lt: investmentEndDate } },
     select: { name: true, amount: true, date: true },
   })
   const existingTaxes = await prisma.tax.findMany({

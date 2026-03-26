@@ -14,6 +14,8 @@ import {
   Coins,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { api } from "@/utils/api";
 
@@ -61,6 +63,12 @@ const investmentFormSchema = z.object({
     .refine((val) => val === "" || (!isNaN(Number(val)) && Number(val) > 0), {
       message: "Valor investido deve ser um número positivo",
     }),
+  net_value: z
+    .string()
+    .optional()
+    .refine((val) => !val || (!isNaN(Number(val)) && Number(val) >= 0), {
+      message: "Valor líquido deve ser um número positivo",
+    }),
   gross_yield: z
     .string()
     .optional()
@@ -101,12 +109,11 @@ interface Investment {
   description?: string;
   amount: number;
   initial_investment?: number;
+  net_value?: number;
   gross_yield?: number;
   investment_type: string;
   purpose: string;
   category?: string;
-  month: string;
-  year: number;
   date: string;
   purchase_date?: string;
   maturity_date?: string;
@@ -121,6 +128,7 @@ interface Portfolio {
   summary: {
     totalInvested: number;
     currentValue: number;
+    netValue: number;
     totalReturn: number;
     returnPercentage: number;
     lastUpdated: string;
@@ -193,6 +201,116 @@ const UnifiedInvestmentsPage = () => {
   const [activeTab, setActiveTab] = useState("portfolio");
   const [selectedInvestmentType, setSelectedInvestmentType] =
     useState<string>("CDB");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expandedPortfolioGroups, setExpandedPortfolioGroups] = useState<Set<string>>(new Set());
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  // Agrupar investimentos por tipo + taxa
+  const groupedInvestments = React.useMemo(() => {
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        type: string;
+        rate: number | null;
+        broker: string | null;
+        investments: Investment[];
+        totalAmount: number;
+        totalGross: number;
+        totalNet: number;
+      }
+    >();
+
+    monthlyInvestments.forEach((inv) => {
+      const rate = inv.interest_rate ?? null;
+      const key = `${inv.investment_type}_${rate ?? "none"}`;
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.investments.push(inv);
+        existing.totalAmount += inv.amount;
+        existing.totalGross += inv.gross_yield ?? inv.amount;
+        existing.totalNet += inv.net_value ?? inv.gross_yield ?? inv.amount;
+      } else {
+        groups.set(key, {
+          key,
+          type: inv.investment_type,
+          rate,
+          broker: inv.broker ?? null,
+          investments: [inv],
+          totalAmount: inv.amount,
+          totalGross: inv.gross_yield ?? inv.amount,
+          totalNet: inv.net_value ?? inv.gross_yield ?? inv.amount,
+        });
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [monthlyInvestments]);
+
+  // Agrupar investimentos do portfolio por nome + taxa
+  const portfolioGroups = React.useMemo(() => {
+    if (!portfolio) return [];
+    const groups = new Map<
+      string,
+      {
+        key: string;
+        name: string;
+        type: string;
+        rate: number | null;
+        broker: string | null;
+        investments: Investment[];
+        totalAmount: number;
+        totalGross: number;
+        totalNet: number;
+      }
+    >();
+
+    portfolio.allInvestments.forEach((inv) => {
+      const rate = inv.interest_rate ?? null;
+      const key = `${inv.name}_${rate ?? "none"}`;
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.investments.push(inv);
+        existing.totalAmount += inv.amount;
+        existing.totalGross += inv.gross_yield ?? inv.amount;
+        existing.totalNet += inv.net_value ?? inv.gross_yield ?? inv.amount;
+      } else {
+        groups.set(key, {
+          key,
+          name: inv.name,
+          type: inv.investment_type,
+          rate,
+          broker: inv.broker ?? null,
+          investments: [inv],
+          totalAmount: inv.amount,
+          totalGross: inv.gross_yield ?? inv.amount,
+          totalNet: inv.net_value ?? inv.gross_yield ?? inv.amount,
+        });
+      }
+    });
+
+    return Array.from(groups.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [portfolio]);
+
+  const togglePortfolioGroup = (key: string) => {
+    setExpandedPortfolioGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
 
   // Para monthly tracking
   const [currentDate, setCurrentDate] = useState(() => {
@@ -256,16 +374,14 @@ const UnifiedInvestmentsPage = () => {
         name: values.name,
         description: values.description,
         amount: parseFloat(values.amount),
-        initial_investment: values.initial_investment
-          ? parseFloat(values.initial_investment)
+        net_value: values.net_value
+          ? parseFloat(values.net_value)
           : undefined,
         gross_yield: values.gross_yield
           ? parseFloat(values.gross_yield)
           : undefined,
         investment_type: values.investment_type,
         category: values.category,
-        month: currentDate.month,
-        year: currentDate.year,
         date: values.date || undefined,
         purchase_date: values.purchase_date || undefined,
         maturity_date: values.maturity_date || undefined,
@@ -298,8 +414,8 @@ const UnifiedInvestmentsPage = () => {
         name: values.name,
         description: values.description,
         amount: parseFloat(values.amount),
-        initial_investment: values.initial_investment
-          ? parseFloat(values.initial_investment)
+        net_value: values.net_value
+          ? parseFloat(values.net_value)
           : undefined,
         gross_yield: values.gross_yield
           ? parseFloat(values.gross_yield)
@@ -359,6 +475,7 @@ const UnifiedInvestmentsPage = () => {
       description: investment.description || "",
       amount: investment.amount.toString(),
       initial_investment: investment.initial_investment?.toString() || "",
+      net_value: investment.net_value?.toString() || "",
       gross_yield: investment.gross_yield?.toString() || "",
       investment_type: investment.investment_type as any,
       category: investment.category || "",
@@ -581,26 +698,49 @@ const UnifiedInvestmentsPage = () => {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="gross_yield"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Rendimento Bruto Atual (opcional)
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Ex: 5250,00"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="gross_yield"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Valor Bruto Atual (opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 5250,00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="net_value"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Valor Líquido Atual (opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 4980,00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -719,26 +859,49 @@ const UnifiedInvestmentsPage = () => {
                       />
                     </div>
 
-                    <FormField
-                      control={form.control}
-                      name="gross_yield"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>
-                            Rendimento Bruto Atual (opcional)
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              placeholder="Ex: 1050,00"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="gross_yield"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Valor Bruto Atual (opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 1050,00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="net_value"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>
+                              Valor Líquido Atual (opcional)
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="0.01"
+                                placeholder="Ex: 980,00"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
                 )}
 
@@ -799,7 +962,7 @@ const UnifiedInvestmentsPage = () => {
           {/* Resumo do Portfolio */}
           {portfolio && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
@@ -817,7 +980,7 @@ const UnifiedInvestmentsPage = () => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
-                      Valor Atual
+                      Valor Bruto
                     </CardTitle>
                     <TrendingUp className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
@@ -831,7 +994,21 @@ const UnifiedInvestmentsPage = () => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
-                      Retorno Total
+                      Valor Líquido
+                    </CardTitle>
+                    <Coins className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">
+                      {formatCurrency(portfolio.summary.netValue)}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      Retorno Bruto
                     </CardTitle>
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
@@ -864,21 +1041,152 @@ const UnifiedInvestmentsPage = () => {
               {/* Gráficos e Análises */}
               {portfolio.allInvestments.length > 0 && (
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h2 className="text-2xl font-bold">Análise do Portfolio</h2>
-                    <div className="flex gap-2">
+                  <h2 className="text-2xl font-bold">Análise do Portfolio</h2>
+                  <InvestmentCharts investments={portfolio.allInvestments} />
+                </div>
+              )}
+
+              {/* Listagem agrupada */}
+              {portfolioGroups.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>Meus Investimentos</CardTitle>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => openCreateDialog()}
                       >
                         <Plus className="mr-2 h-4 w-4" />
-                        Adicionar Investimento
+                        Novo Investimento
                       </Button>
                     </div>
-                  </div>
-                  <InvestmentCharts investments={portfolio.allInvestments} />
-                </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {portfolioGroups.map((group) => {
+                      const isExpanded = expandedPortfolioGroups.has(group.key);
+                      const count = group.investments.length;
+                      const returnValue = group.totalGross - group.totalAmount;
+                      const returnPct = group.totalAmount > 0 ? (returnValue / group.totalAmount) * 100 : 0;
+
+                      return (
+                        <div key={group.key} className="border rounded-lg overflow-hidden">
+                          <div
+                            className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => togglePortfolioGroup(group.key)}
+                          >
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isExpanded
+                                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              }
+                              <h4 className="font-semibold">{group.name}</h4>
+                              <Badge variant="outline">
+                                {getInvestmentTypeLabel(group.type)}
+                              </Badge>
+                              {group.rate != null && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {group.rate}% a.a.
+                                </Badge>
+                              )}
+                              {group.broker && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {group.broker}
+                                </Badge>
+                              )}
+                              <span className="text-xs text-muted-foreground">
+                                ({count} {count === 1 ? "aplicação" : "aplicações"})
+                              </span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-4 text-sm text-right">
+                              <div>
+                                <span className="text-muted-foreground text-xs block">Aplicado</span>
+                                <span className="font-semibold">{formatCurrency(group.totalAmount)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground text-xs block">Bruto</span>
+                                <span className="font-semibold">{formatCurrency(group.totalGross)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground text-xs block">Líquido</span>
+                                <span className="font-semibold text-green-600">{formatCurrency(group.totalNet)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground text-xs block">Retorno</span>
+                                <span className={`font-semibold ${returnPct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                  {returnPct.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isExpanded && (
+                            <div className="border-t">
+                              {group.investments.map((investment) => (
+                                <div
+                                  key={investment.id}
+                                  className="p-3 px-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="grid grid-cols-3 md:grid-cols-5 gap-3 text-sm flex-1">
+                                      <div>
+                                        <span className="text-muted-foreground text-xs">Aplicado</span>
+                                        <div className="font-medium">{formatCurrency(investment.amount)}</div>
+                                      </div>
+                                      {investment.gross_yield != null && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Bruto</span>
+                                          <div className="font-medium">{formatCurrency(investment.gross_yield)}</div>
+                                        </div>
+                                      )}
+                                      {investment.net_value != null && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Líquido</span>
+                                          <div className="font-medium text-green-600">{formatCurrency(investment.net_value)}</div>
+                                        </div>
+                                      )}
+                                      {investment.purchase_date && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Aplicação</span>
+                                          <div className="font-medium">{new Date(investment.purchase_date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</div>
+                                        </div>
+                                      )}
+                                      {investment.maturity_date && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Vencimento</span>
+                                          <div className="font-medium">{new Date(investment.maturity_date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</div>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-1 ml-2">
+                                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEditDialog(investment); }}>
+                                        <Edit className="h-4 w-4" />
+                                      </Button>
+                                      {deletingId === investment.id ? (
+                                        <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                          <Button variant="destructive" size="sm" onClick={() => { deleteInvestment(investment.id); setDeletingId(null); }}>
+                                            Confirmar
+                                          </Button>
+                                          <Button variant="outline" size="sm" onClick={() => setDeletingId(null)}>
+                                            Cancelar
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingId(investment.id); }} className="text-red-500 hover:text-red-700">
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
               )}
             </>
           )}
@@ -978,7 +1286,7 @@ const UnifiedInvestmentsPage = () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <Card>
                       <CardContent className="pt-6">
                         <div className="text-2xl font-bold">
@@ -990,17 +1298,7 @@ const UnifiedInvestmentsPage = () => {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Total Investido no Mês
-                        </p>
-                      </CardContent>
-                    </Card>
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-2xl font-bold">
-                          {monthlyInvestments.length}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Investimentos Realizados
+                          Total Aplicado
                         </p>
                       </CardContent>
                     </Card>
@@ -1016,82 +1314,173 @@ const UnifiedInvestmentsPage = () => {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          Valor Total em Portfolio
+                          Valor Bruto
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold text-green-600">
+                          {formatCurrency(
+                            monthlyInvestments.reduce(
+                              (sum, inv) =>
+                                sum + (inv.net_value || inv.gross_yield || inv.amount),
+                              0,
+                            ),
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Valor Líquido
+                        </p>
+                      </CardContent>
+                    </Card>
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-2xl font-bold">
+                          {monthlyInvestments.length}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Investimentos
                         </p>
                       </CardContent>
                     </Card>
                   </div>
 
-                  {monthlyInvestments.map((investment) => (
-                    <div
-                      key={investment.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="space-y-2 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{investment.name}</h4>
-                          <Badge variant="outline">
-                            {getInvestmentTypeLabel(investment.investment_type)}
-                          </Badge>
-                        </div>
+                  {groupedInvestments.map((group) => {
+                    const isExpanded = expandedGroups.has(group.key);
+                    const isSingle = group.investments.length === 1;
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                          <div>
-                            <span className="text-muted-foreground">
-                              Valor Mensal:
-                            </span>
-                            <div className="font-medium text-lg">
-                              {formatCurrency(investment.amount)}
-                            </div>
+                    return (
+                      <div key={group.key} className="border rounded-lg overflow-hidden">
+                        {/* Header do grupo */}
+                        <div
+                          className={`flex items-center justify-between p-4 ${!isSingle ? "cursor-pointer hover:bg-muted/50" : ""} transition-colors`}
+                          onClick={() => !isSingle && toggleGroup(group.key)}
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {!isSingle && (
+                              isExpanded
+                                ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                                : <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <h4 className="font-semibold">
+                              {getInvestmentTypeLabel(group.type)}
+                              {group.rate != null ? ` ${group.rate}%` : ""}
+                            </h4>
+                            <Badge variant="outline">
+                              {group.investments.length} {group.investments.length === 1 ? "investimento" : "investimentos"}
+                            </Badge>
                           </div>
-                          {investment.gross_yield && (
+                          <div className="grid grid-cols-3 gap-6 text-sm text-right">
                             <div>
-                              <span className="text-muted-foreground">
-                                Valor Atual Total:
-                              </span>
-                              <div className="font-medium">
-                                {formatCurrency(investment.gross_yield)}
-                              </div>
+                              <span className="text-muted-foreground text-xs block">Aplicado</span>
+                              <span className="font-semibold">{formatCurrency(group.totalAmount)}</span>
                             </div>
-                          )}
-                          <div>
-                            <span className="text-muted-foreground">Data:</span>
-                            <div className="font-medium">
-                              {new Date(investment.date).toLocaleDateString(
-                                "pt-BR", { timeZone: "UTC" },
-                              )}
+                            <div>
+                              <span className="text-muted-foreground text-xs block">Bruto</span>
+                              <span className="font-semibold">{formatCurrency(group.totalGross)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground text-xs block">Líquido</span>
+                              <span className="font-semibold text-green-600">{formatCurrency(group.totalNet)}</span>
                             </div>
                           </div>
                         </div>
 
-                        {investment.description && (
-                          <p className="text-sm text-muted-foreground">
-                            {investment.description}
-                          </p>
+                        {/* Investimentos individuais (expandidos ou único) */}
+                        {(isExpanded || isSingle) && (
+                          <div className={`${!isSingle ? "border-t" : ""}`}>
+                            {group.investments.map((investment) => (
+                              <div
+                                key={investment.id}
+                                className="p-4 border-b last:border-b-0 hover:bg-muted/30 transition-colors space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-medium">{investment.name}</span>
+                                    {investment.broker && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        {investment.broker}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={(e) => { e.stopPropagation(); openEditDialog(investment); }}
+                                      title="Editar"
+                                    >
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    {deletingId === investment.id ? (
+                                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() => { deleteInvestment(investment.id); setDeletingId(null); }}
+                                        >
+                                          Confirmar
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => setDeletingId(null)}
+                                        >
+                                          Cancelar
+                                        </Button>
+                                      </div>
+                                    ) : (
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={(e) => { e.stopPropagation(); setDeletingId(investment.id); }}
+                                        className="text-red-500 hover:text-red-700"
+                                        title="Deletar"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 md:grid-cols-6 gap-3 text-sm">
+                                  <div>
+                                    <span className="text-muted-foreground text-xs">Aplicado</span>
+                                    <div className="font-medium">{formatCurrency(investment.amount)}</div>
+                                  </div>
+                                  {investment.gross_yield != null && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Bruto</span>
+                                      <div className="font-medium">{formatCurrency(investment.gross_yield)}</div>
+                                    </div>
+                                  )}
+                                  {investment.net_value != null && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Líquido</span>
+                                      <div className="font-medium text-green-600">{formatCurrency(investment.net_value)}</div>
+                                    </div>
+                                  )}
+                                  {investment.purchase_date && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Aplicação</span>
+                                      <div className="font-medium">{new Date(investment.purchase_date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</div>
+                                    </div>
+                                  )}
+                                  {investment.maturity_date && (
+                                    <div>
+                                      <span className="text-muted-foreground text-xs">Vencimento</span>
+                                      <div className="font-medium">{new Date(investment.maturity_date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}</div>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => openEditDialog(investment)}
-                          title="Editar investimento"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteInvestment(investment.id)}
-                          className="text-red-500 hover:text-red-700"
-                          title="Deletar investimento"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </CardContent>

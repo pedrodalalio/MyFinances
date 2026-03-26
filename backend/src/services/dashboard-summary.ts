@@ -88,7 +88,7 @@ export class DashboardSummaryService {
       await this.investmentRepository.findAllPortfolioByUser(userId);
     const totalInvestments = investmentsWithPortfolio.reduce(
       (sum, investment) =>
-        sum + Number(investment.current_value || investment.amount),
+        sum + Number(investment.gross_yield || investment.amount),
       0,
     );
 

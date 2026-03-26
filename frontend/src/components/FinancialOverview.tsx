@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -9,6 +9,9 @@ import {
   Plus,
   Edit3,
   Trash2,
+  RefreshCw,
+  Save,
+  Loader2,
 } from "lucide-react";
 import { api } from "@/utils/api";
 
@@ -90,6 +93,24 @@ const addMoneySchema = z.object({
 
 type AddMoneyFormValues = z.infer<typeof addMoneySchema>;
 
+interface PortfolioInvestment {
+  id: string;
+  name: string;
+  amount: number;
+  gross_yield: number | null;
+  net_value: number | null;
+  investment_type: string;
+  interest_rate: number | null;
+  broker: string | null;
+  purchase_date: string | null;
+  status: string;
+}
+
+interface InvestmentUpdate {
+  gross_yield: string;
+  net_value: string;
+}
+
 export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   month,
   year,
@@ -99,6 +120,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isAddMoneyDialogOpen, setIsAddMoneyDialogOpen] = useState(false);
   const [isEditMoneyDialogOpen, setIsEditMoneyDialogOpen] = useState(false);
+  const [isInvestmentClosingOpen, setIsInvestmentClosingOpen] = useState(false);
+  const [portfolioInvestments, setPortfolioInvestments] = useState<PortfolioInvestment[]>([]);
+  const [investmentUpdates, setInvestmentUpdates] = useState<Record<string, InvestmentUpdate>>({});
+  const [savingInvestments, setSavingInvestments] = useState(false);
+  const [loadingInvestments, setLoadingInvestments] = useState(false);
 
   const addMoneyForm = useForm<AddMoneyFormValues>({
     resolver: zodResolver(addMoneySchema),
@@ -188,6 +214,83 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
       await refreshOverview();
     } catch (error) {
       console.error("Erro ao confirmar mês:", error);
+    }
+  };
+
+  const loadPortfolioInvestments = useCallback(async () => {
+    try {
+      setLoadingInvestments(true);
+      const response = await api.get("/investments/portfolio");
+      const investments: PortfolioInvestment[] = response.data.portfolio.allInvestments
+        .filter((inv: PortfolioInvestment) => inv.status === "ACTIVE")
+        .sort((a: PortfolioInvestment, b: PortfolioInvestment) => {
+          const dateA = a.purchase_date ? new Date(a.purchase_date).getTime() : 0;
+          const dateB = b.purchase_date ? new Date(b.purchase_date).getTime() : 0;
+          return dateA - dateB;
+        });
+      setPortfolioInvestments(investments);
+
+      const updates: Record<string, InvestmentUpdate> = {};
+      investments.forEach((inv) => {
+        updates[inv.id] = {
+          gross_yield: inv.gross_yield?.toString() || "",
+          net_value: inv.net_value?.toString() || "",
+        };
+      });
+      setInvestmentUpdates(updates);
+    } catch (error) {
+      console.error("Erro ao carregar investimentos:", error);
+    } finally {
+      setLoadingInvestments(false);
+    }
+  }, []);
+
+  const handleOpenInvestmentClosing = async () => {
+    setIsInvestmentClosingOpen(true);
+    await loadPortfolioInvestments();
+  };
+
+  const handleInvestmentFieldChange = (
+    investmentId: string,
+    field: "gross_yield" | "net_value",
+    value: string
+  ) => {
+    setInvestmentUpdates((prev) => ({
+      ...prev,
+      [investmentId]: {
+        ...prev[investmentId],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveInvestmentClosing = async () => {
+    try {
+      setSavingInvestments(true);
+
+      const updatePromises = portfolioInvestments.map((inv) => {
+        const update = investmentUpdates[inv.id];
+        if (!update) return Promise.resolve();
+
+        const grossYield = parseFloat(update.gross_yield);
+        const netValue = parseFloat(update.net_value);
+
+        const body: Record<string, number> = {};
+        if (!isNaN(grossYield)) body.gross_yield = grossYield;
+        if (!isNaN(netValue)) body.net_value = netValue;
+
+        if (Object.keys(body).length === 0) return Promise.resolve();
+
+        return api.put(`/monthly-investments/${inv.id}`, body);
+      });
+
+      await Promise.all(updatePromises);
+      setIsInvestmentClosingOpen(false);
+      await refreshOverview();
+    } catch (error) {
+      console.error("Erro ao salvar investimentos:", error);
+    } finally {
+      setSavingInvestments(false);
     }
   };
 
@@ -560,6 +663,26 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
             </div>
 
+            {/* Fechamento de Investimentos */}
+            {!financial_data.is_confirmed && (
+              <div className="pt-4 border-t">
+                <div className="flex flex-col gap-2">
+                  <h4 className="font-medium">Atualizar Investimentos</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Atualize os rendimentos brutos e líquidos dos seus investimentos antes de fechar o mês
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={handleOpenInvestmentClosing}
+                    className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                  >
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Atualizar Rendimentos
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Botão Confirmar Mês */}
             <div className="pt-4 border-t">
               <div className="flex flex-col gap-2">
@@ -715,6 +838,145 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
             </form>
           </Form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal para Fechamento de Investimentos */}
+      <Dialog
+        open={isInvestmentClosingOpen}
+        onOpenChange={(open) => {
+          setIsInvestmentClosingOpen(open);
+        }}
+      >
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Atualizar Rendimentos dos Investimentos</DialogTitle>
+            <DialogDescription>
+              Atualize os valores brutos e líquidos de cada investimento conforme o app do banco.
+              Os valores devem ser o <strong>valor total atual</strong> (aplicado + rendimento).
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingInvestments ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Carregando investimentos...</span>
+            </div>
+          ) : portfolioInvestments.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              Nenhum investimento ativo encontrado.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {portfolioInvestments.map((inv) => {
+                const update = investmentUpdates[inv.id];
+                const currentGross = parseFloat(update?.gross_yield || "0");
+                const rendimento = currentGross - inv.amount;
+
+                return (
+                  <div
+                    key={inv.id}
+                    className="border rounded-lg p-4 space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium">{inv.name}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant="outline" className="text-xs">
+                            {inv.investment_type}
+                          </Badge>
+                          {inv.interest_rate != null && (
+                            <Badge variant="secondary" className="text-xs">
+                              {inv.interest_rate}% a.a.
+                            </Badge>
+                          )}
+                          {inv.broker && (
+                            <span className="text-xs text-muted-foreground">
+                              {inv.broker}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs text-muted-foreground">Aplicado</span>
+                        <div className="font-semibold">{formatCurrency(inv.amount)}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          Valor Bruto Atual
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Ex: 2685.52"
+                          value={update?.gross_yield || ""}
+                          onChange={(e) =>
+                            handleInvestmentFieldChange(inv.id, "gross_yield", e.target.value)
+                          }
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">
+                          Valor Líquido Atual
+                        </label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="Ex: 2569.33"
+                          value={update?.net_value || ""}
+                          onChange={(e) =>
+                            handleInvestmentFieldChange(inv.id, "net_value", e.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {currentGross > 0 && (
+                      <div className="text-xs text-muted-foreground">
+                        Rendimento bruto:{" "}
+                        <span
+                          className={`font-medium ${
+                            rendimento >= 0 ? "text-green-600" : "text-red-600"
+                          }`}
+                        >
+                          {formatCurrency(rendimento)} ({((rendimento / inv.amount) * 100).toFixed(2)}%)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsInvestmentClosingOpen(false)}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleSaveInvestmentClosing}
+                  disabled={savingInvestments}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {savingInvestments ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      Salvar Rendimentos
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -239,12 +239,11 @@ model Investment {
   id                  String             @id @default(uuid())
   name                String
   description         String?
-  amount              Decimal            // Valor investido
-  gross_yield         Decimal?           // Rendimento bruto
+  amount              Decimal            // Valor aplicado
+  gross_yield         Decimal?           // Valor bruto atual
+  net_value           Decimal?           // Valor líquido atual
   investment_type     InvestmentType
   category            String?
-  month               String
-  year                Int
   date                DateTime           @default(now())
   purchase_date       DateTime?          // Data de compra (pode ser diferente da date)
   maturity_date       DateTime?          // Data de vencimento

@@ -5,11 +5,10 @@ interface CreateInvestmentServiceRequest {
   name: string
   description?: string
   amount: number
+  netValue?: number
   grossYield?: number
   investmentType: InvestmentType
   category?: string
-  month: string
-  year: number
   date?: Date
   purchaseDate?: Date
   maturityDate?: Date
@@ -28,8 +27,6 @@ interface CreateInvestmentServiceResponse {
     amount: number
     investment_type: InvestmentType
     category: string | null
-    month: string
-    year: number
     date: Date
   }
 }
@@ -43,11 +40,10 @@ export class CreateInvestmentService {
     name,
     description,
     amount,
+    netValue,
     grossYield,
     investmentType,
     category,
-    month,
-    year,
     date,
     purchaseDate,
     maturityDate,
@@ -61,11 +57,10 @@ export class CreateInvestmentService {
       name,
       description,
       amount,
+      netValue,
       grossYield,
       investmentType,
       category,
-      month,
-      year,
       date,
       purchaseDate,
       maturityDate,
@@ -84,8 +79,6 @@ export class CreateInvestmentService {
         amount: Number(investment.amount),
         investment_type: investment.investment_type,
         category: investment.category,
-        month: investment.month,
-        year: investment.year,
         date: investment.date
       }
     }

@@ -95,9 +95,8 @@ export async function confirmImport(request: FastifyRequest, reply: FastifyReply
           amount: totalAmount,
           investment_type: "OTHER",
           category,
-          month,
-          year,
           date: latestDate,
+          purchase_date: latestDate,
           user_id: userId,
         },
       })

@@ -4,14 +4,34 @@ import { Investment } from '@prisma/client'
 interface PortfolioSummary {
   totalInvested: number
   currentValue: number
+  netValue: number
   totalReturn: number
   returnPercentage: number
   lastUpdated: string
 }
 
+interface SerializedInvestment {
+  id: string
+  name: string
+  description: string | null
+  amount: number
+  gross_yield: number | null
+  net_value: number | null
+  investment_type: string
+  category: string | null
+  date: Date
+  purchase_date: Date | null
+  maturity_date: Date | null
+  interest_rate: number | null
+  quantity: number | null
+  broker: string | null
+  status: string
+  notes: string | null
+}
+
 interface GetInvestmentPortfolioUnifiedResponse {
   summary: PortfolioSummary
-  allInvestments: Investment[]
+  allInvestments: SerializedInvestment[]
 }
 
 export class GetInvestmentPortfolioUnifiedService {
@@ -26,7 +46,24 @@ export class GetInvestmentPortfolioUnifiedService {
 
     return {
       summary,
-      allInvestments
+      allInvestments: allInvestments.map(inv => ({
+        id: inv.id,
+        name: inv.name,
+        description: inv.description,
+        amount: Number(inv.amount),
+        gross_yield: inv.gross_yield ? Number(inv.gross_yield) : null,
+        net_value: inv.net_value ? Number(inv.net_value) : null,
+        investment_type: inv.investment_type,
+        category: inv.category,
+        date: inv.date,
+        purchase_date: inv.purchase_date,
+        maturity_date: inv.maturity_date,
+        interest_rate: inv.interest_rate ? Number(inv.interest_rate) : null,
+        quantity: inv.quantity ? Number(inv.quantity) : null,
+        broker: inv.broker,
+        status: inv.status,
+        notes: inv.notes,
+      }))
     }
   }
 
@@ -41,6 +78,11 @@ export class GetInvestmentPortfolioUnifiedService {
       return sum + Number(value)
     }, 0)
 
+    const netValue = investments.reduce((sum, inv) => {
+      const value = inv.net_value || inv.gross_yield || inv.amount || 0
+      return sum + Number(value)
+    }, 0)
+
     const totalReturn = currentValue - totalInvested
     const returnPercentage = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0
 
@@ -52,6 +94,7 @@ export class GetInvestmentPortfolioUnifiedService {
     return {
       totalInvested,
       currentValue,
+      netValue,
       totalReturn,
       returnPercentage,
       lastUpdated: lastUpdated.toISOString()

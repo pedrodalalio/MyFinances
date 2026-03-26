@@ -4,11 +4,10 @@ export interface CreateInvestmentData {
   name: string
   description?: string
   amount: number
+  netValue?: number
   grossYield?: number
   investmentType: InvestmentType
   category?: string
-  month: string
-  year: number
   date?: Date
   purchaseDate?: Date
   maturityDate?: Date
@@ -25,11 +24,10 @@ export interface UpdateInvestmentData {
   name?: string
   description?: string
   amount?: number
+  netValue?: number
   grossYield?: number
   investmentType?: InvestmentType
   category?: string
-  month?: string
-  year?: number
   date?: Date
   purchaseDate?: Date
   maturityDate?: Date

@@ -7,11 +7,10 @@ interface UpdateInvestmentServiceRequest {
   name?: string
   description?: string
   amount?: number
+  netValue?: number
   grossYield?: number
   investmentType?: InvestmentType
   category?: string
-  month?: string
-  year?: number
   date?: Date
   purchaseDate?: Date
   maturityDate?: Date
@@ -28,11 +27,17 @@ interface UpdateInvestmentServiceResponse {
     name: string
     description: string | null
     amount: number
+    net_value: number | null
     investment_type: InvestmentType
     category: string | null
-    month: string
-    year: number
     date: Date
+    purchase_date: Date | null
+    maturity_date: Date | null
+    interest_rate: number | null
+    quantity: number | null
+    broker: string | null
+    gross_yield: number | null
+    notes: string | null
   }
 }
 
@@ -46,11 +51,10 @@ export class UpdateInvestmentService {
     name,
     description,
     amount,
+    netValue,
     grossYield,
     investmentType,
     category,
-    month,
-    year,
     date,
     purchaseDate,
     maturityDate,
@@ -71,11 +75,10 @@ export class UpdateInvestmentService {
       name,
       description,
       amount,
+      netValue,
       grossYield,
       investmentType,
       category,
-      month,
-      year,
       date,
       purchaseDate,
       maturityDate,
@@ -92,11 +95,17 @@ export class UpdateInvestmentService {
         name: investment.name,
         description: investment.description,
         amount: Number(investment.amount),
+        net_value: investment.net_value ? Number(investment.net_value) : null,
         investment_type: investment.investment_type,
         category: investment.category,
-        month: investment.month,
-        year: investment.year,
-        date: investment.date
+        date: investment.date,
+        purchase_date: investment.purchase_date,
+        maturity_date: investment.maturity_date,
+        interest_rate: investment.interest_rate ? Number(investment.interest_rate) : null,
+        quantity: investment.quantity ? Number(investment.quantity) : null,
+        broker: investment.broker,
+        gross_yield: investment.gross_yield ? Number(investment.gross_yield) : null,
+        notes: investment.notes
       }
     }
   }

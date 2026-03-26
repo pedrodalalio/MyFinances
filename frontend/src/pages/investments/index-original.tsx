@@ -71,8 +71,6 @@ interface Investment {
   amount: number;
   investment_type: string;
   category?: string;
-  month: string;
-  year: number;
   date: string;
 }
 
@@ -150,8 +148,6 @@ const InvestmentsPage = () => {
         amount: Math.round(parseFloat(values.amount) * 100) / 100,
         investment_type: values.investment_type,
         category: values.category,
-        month: selectedMonth.toString().padStart(2, "0"),
-        year: selectedYear,
         date: values.date || new Date().toISOString(),
       };
 
