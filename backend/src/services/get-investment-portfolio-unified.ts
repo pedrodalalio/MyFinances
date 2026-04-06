@@ -27,6 +27,7 @@ interface SerializedInvestment {
   broker: string | null
   status: string
   notes: string | null
+  updated_at: Date
 }
 
 interface GetInvestmentPortfolioUnifiedResponse {
@@ -63,6 +64,7 @@ export class GetInvestmentPortfolioUnifiedService {
         broker: inv.broker,
         status: inv.status,
         notes: inv.notes,
+        updated_at: inv.updated_at,
       }))
     }
   }

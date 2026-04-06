@@ -49,11 +49,15 @@ export class GetMonthlyExpensesService {
     const activeRecurringPurchases = recurringPurchases.filter(purchase => {
       if (!purchase.is_recurring) return false
 
-      // Verificar se já estava ativo no período solicitado
       const startDate = new Date(purchase.start_year, parseInt(purchase.start_month) - 1)
       const requestedDate = new Date(year, parseInt(month) - 1)
 
-      return startDate <= requestedDate
+      if (startDate > requestedDate) return false
+      if (purchase.end_month && purchase.end_year) {
+        const endDate = new Date(purchase.end_year, parseInt(purchase.end_month) - 1)
+        if (endDate < requestedDate) return false
+      }
+      return true
     })
 
     const expenses: MonthlyExpense[] = []

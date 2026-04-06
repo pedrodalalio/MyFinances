@@ -86,7 +86,15 @@ export class ConfirmMonthService {
         parseInt(purchase.start_month) - 1,
       );
       const requestedDate = new Date(year, parseInt(month) - 1);
-      return startDate <= requestedDate;
+      if (startDate > requestedDate) return false;
+      if (purchase.end_month && purchase.end_year) {
+        const endDate = new Date(
+          purchase.end_year,
+          parseInt(purchase.end_month) - 1,
+        );
+        if (endDate < requestedDate) return false;
+      }
+      return true;
     });
 
     const installmentsTotal = installments.reduce(
