@@ -286,8 +286,8 @@ export class GetFinancialOverviewService {
         year,
       );
 
-    // Se já tem dados no mês atual e já tem previous_balance, não transferir novamente
-    if (currentMonthData && Number(currentMonthData.previous_balance) > 0) {
+    // Se já tem dados no mês atual e o previous_balance já foi definido (diferente de 0), não recalcular
+    if (currentMonthData && Number(currentMonthData.previous_balance) !== 0) {
       return;
     }
 
@@ -336,23 +336,21 @@ export class GetFinancialOverviewService {
     const prevTotalExpenses = expensesTotal + creditCardTotal + taxesTotal + investmentsTotal;
     const previousBalance = prevTotalIncome - prevTotalExpenses;
 
-    if (previousBalance > 0) {
-      // Salvar diretamente no mês atual
-      if (currentMonthData) {
-        await this.financialDataRepository.update(currentMonthData.id, {
-          previous_balance: previousBalance,
-        });
-      } else {
-        await this.financialDataRepository.create({
-          user_id: userId,
-          month,
-          year,
-          main_income: 0,
-          checking_account: 0,
-          previous_balance: previousBalance,
-          total_in_account: 0,
-        });
-      }
+    // Salvar diretamente no mês atual
+    if (currentMonthData) {
+      await this.financialDataRepository.update(currentMonthData.id, {
+        previous_balance: previousBalance,
+      });
+    } else {
+      await this.financialDataRepository.create({
+        user_id: userId,
+        month,
+        year,
+        main_income: 0,
+        checking_account: 0,
+        previous_balance: previousBalance,
+        total_in_account: 0,
+      });
     }
   }
 }

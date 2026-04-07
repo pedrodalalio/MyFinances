@@ -262,10 +262,12 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 Salário:{" "}
                 {formatCurrency(salary?.amount || financial_data.main_income)}
               </div>
-              {financial_data.previous_balance > 0 && (
+              {financial_data.previous_balance !== 0 && (
                 <div>
                   Saldo anterior:{" "}
-                  {formatCurrency(financial_data.previous_balance)}
+                  <span className={financial_data.previous_balance < 0 ? "text-red-500" : ""}>
+                    {formatCurrency(financial_data.previous_balance)}
+                  </span>
                 </div>
               )}
               {financial_data.income_subtotal > 0 && (

@@ -162,7 +162,7 @@ export class ConfirmMonthService {
     if (nextMonthData) {
       // Se já existe, atualizar o previous_balance
       await this.financialDataRepository.update(nextMonthData.id, {
-        previous_balance: Math.max(0, finalBalance), // Só transfere se for positivo
+        previous_balance: finalBalance,
       });
     } else {
       // Se não existe, criar dados para o próximo mês
@@ -172,7 +172,7 @@ export class ConfirmMonthService {
         year: nextYear,
         main_income: 0,
         checking_account: 0,
-        previous_balance: Math.max(0, finalBalance), // Só transfere se for positivo
+        previous_balance: finalBalance,
         total_in_account: 0,
       });
     }

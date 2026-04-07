@@ -138,11 +138,13 @@ interface YieldInvestment {
   gross_yield: number | null;
   net_value: number | null;
   investment_type: string;
+  category: string | null;
   interest_rate: number | null;
   quantity: number | null;
   broker: string | null;
   ticker: string | null;
   purchase_date: string | null;
+  maturity_date: string | null;
   status: string;
   updated_at: string | null;
 }
@@ -200,6 +202,17 @@ const getStatusBadgeColor = (status: string) => {
     default:
       return "default";
   }
+};
+
+const getTreasuryCategoryLabel = (category: string): string => {
+  const labels: Record<string, string> = {
+    SELIC: "Tesouro Selic",
+    PREFIXADO: "Tesouro Prefixado",
+    IPCA: "Tesouro IPCA+",
+    IPCA_SEMESTRAL: "Tesouro IPCA+ com Juros Semestrais",
+    PREFIXADO_SEMESTRAL: "Tesouro Prefixado com Juros Semestrais",
+  };
+  return labels[category] || category;
 };
 
 const getEffectiveAmount = (inv: { amount: number; quantity?: number; investment_type: string }): number => {
@@ -462,8 +475,8 @@ const UnifiedInvestmentsPage = () => {
         const netValue = parseFloat(update.net_value);
 
         const body: Record<string, number> = {};
-        if (!isNaN(grossYield)) body.gross_yield = grossYield;
-        if (!isNaN(netValue)) body.net_value = netValue;
+        if (!isNaN(grossYield) && grossYield !== (inv.gross_yield ?? 0)) body.gross_yield = grossYield;
+        if (!isNaN(netValue) && netValue !== (inv.net_value ?? 0)) body.net_value = netValue;
 
         if (Object.keys(body).length === 0) return Promise.resolve();
 
@@ -985,49 +998,6 @@ const UnifiedInvestmentsPage = () => {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="gross_yield"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              Valor Bruto Atual (opcional)
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Ex: 1050,00"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="net_value"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>
-                              Valor Líquido Atual (opcional)
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Ex: 980,00"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
                   </div>
                 )}
 
@@ -1361,6 +1331,12 @@ const UnifiedInvestmentsPage = () => {
                                           <div className="font-medium">{formatCurrency(getEffectiveAmount(investment))}</div>
                                         </div>
                                       )}
+                                      {investment.investment_type === "TREASURY" && investment.quantity != null && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Títulos</span>
+                                          <div className="font-medium">{investment.quantity}</div>
+                                        </div>
+                                      )}
                                       {investment.gross_yield != null && (
                                         <div>
                                           <span className="text-muted-foreground text-xs">Bruto</span>
@@ -1540,24 +1516,20 @@ const UnifiedInvestmentsPage = () => {
                               </div>
 
                               {currentPrice > 0 && (
-                                <div className="text-xs text-muted-foreground space-y-0.5">
-                                  <div>
-                                    Rendimento (total):{" "}
-                                    <span
-                                      className={`font-medium ${
-                                        rendimento >= 0 ? "text-green-600" : "text-red-600"
-                                      }`}
-                                    >
+                                <div className="text-xs text-muted-foreground space-y-0.5 pt-2 border-t">
+                                  <div className="flex justify-between">
+                                    <span>Bruto atual:</span>
+                                    <span className="font-medium">{formatCurrency(valorAtual)}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Rendimento (total):</span>
+                                    <span className={`font-medium ${rendimento >= 0 ? "text-green-600" : "text-red-600"}`}>
                                       {formatCurrency(rendimento)} ({((rendimento / totalInvestido) * 100).toFixed(2)}%)
                                     </span>
                                   </div>
-                                  <div>
-                                    Rendimento desde última atualização:{" "}
-                                    <span
-                                      className={`font-medium ${
-                                        rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"
-                                      }`}
-                                    >
+                                  <div className="flex justify-between">
+                                    <span>Rendimento desde última atualização:</span>
+                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"}`}>
                                       {formatCurrency(rendimentoDesdeUltima)}
                                     </span>
                                   </div>
@@ -1570,8 +1542,150 @@ const UnifiedInvestmentsPage = () => {
                     );
                   })()}
 
-                  {/* Outros investimentos (não-ETF) */}
-                  {sortedYieldInvestments.filter(inv => inv.investment_type !== "ETF").map((inv) => {
+                  {/* Tesouro Direto agrupado por categoria */}
+                  {(() => {
+                    const treasuryInvestments = sortedYieldInvestments.filter(inv => inv.investment_type === "TREASURY");
+                    const treasuryCategories = Array.from(new Set(treasuryInvestments.map(inv => inv.category || "OUTROS")));
+
+                    if (treasuryCategories.length === 0) return null;
+
+                    return (
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground">Tesouro Direto</h4>
+                        {treasuryCategories.map((category) => {
+                          const categoryInvestments = treasuryInvestments.filter(inv => (inv.category || "OUTROS") === category);
+                          const totalInvestido = categoryInvestments.reduce((sum, inv) => sum + getEffectiveAmount(inv), 0);
+                          const totalBrutoAnterior = categoryInvestments.reduce((sum, inv) => sum + (inv.gross_yield ?? getEffectiveAmount(inv)), 0);
+                          const totalBrutoAtual = categoryInvestments.reduce((sum, inv) => {
+                            const update = yieldUpdates[inv.id];
+                            return sum + parseFloat(update?.gross_yield || "0");
+                          }, 0);
+                          const totalLiquidoAtual = categoryInvestments.reduce((sum, inv) => {
+                            const update = yieldUpdates[inv.id];
+                            return sum + parseFloat(update?.net_value || "0");
+                          }, 0);
+                          const rendimentoTotal = totalBrutoAtual - totalInvestido;
+                          const rendimentoDesdeUltima = totalBrutoAtual - totalBrutoAnterior;
+
+                          return (
+                            <div key={category} className="border rounded-lg p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-medium">{getTreasuryCategoryLabel(category)}</h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">Tesouro Direto</Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      {categoryInvestments.length} {categoryInvestments.length === 1 ? "título" : "títulos"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs text-muted-foreground">Total Investido</span>
+                                  <div className="font-semibold">{formatCurrency(totalInvestido)}</div>
+                                </div>
+                              </div>
+
+                              {/* Inputs individuais por título */}
+                              <div className="space-y-3 pl-2 border-l-2 border-muted">
+                                {categoryInvestments.map((inv) => {
+                                  const update = yieldUpdates[inv.id];
+                                  const effectiveAmount = getEffectiveAmount(inv);
+                                  return (
+                                    <div key={inv.id} className="space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium">{inv.name}</span>
+                                          {inv.interest_rate != null && (
+                                            <Badge variant="secondary" className="text-xs">
+                                              {inv.interest_rate}% a.a.
+                                            </Badge>
+                                          )}
+                                          {inv.maturity_date && (
+                                            <span className="text-xs text-muted-foreground">
+                                              Venc. {new Date(inv.maturity_date).toLocaleDateString("pt-BR", { timeZone: "UTC" })}
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-xs text-muted-foreground">
+                                          Aplicado: {formatCurrency(effectiveAmount)}
+                                        </span>
+                                      </div>
+                                      {inv.updated_at && (
+                                        <span className="text-xs text-muted-foreground block">
+                                          Atualizado em {new Date(inv.updated_at).toLocaleDateString("pt-BR")}
+                                        </span>
+                                      )}
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                            Valor Bruto Atual
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Ex: 2685.52"
+                                            value={update?.gross_yield || ""}
+                                            onChange={(e) =>
+                                              handleYieldFieldChange(inv.id, "gross_yield", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                        <div>
+                                          <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                            Valor Líquido Atual
+                                          </label>
+                                          <Input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="Ex: 2569.33"
+                                            value={update?.net_value || ""}
+                                            onChange={(e) =>
+                                              handleYieldFieldChange(inv.id, "net_value", e.target.value)
+                                            }
+                                          />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Totais do grupo */}
+                              {totalBrutoAtual > 0 && (
+                                <div className="text-xs text-muted-foreground space-y-0.5 pt-2 border-t">
+                                  <div className="flex justify-between">
+                                    <span>Bruto atual (grupo):</span>
+                                    <span className="font-medium">{formatCurrency(totalBrutoAtual)}</span>
+                                  </div>
+                                  {totalLiquidoAtual > 0 && (
+                                    <div className="flex justify-between">
+                                      <span>Líquido atual (grupo):</span>
+                                      <span className="font-medium text-green-600">{formatCurrency(totalLiquidoAtual)}</span>
+                                    </div>
+                                  )}
+                                  <div className="flex justify-between">
+                                    <span>Rendimento (total):</span>
+                                    <span className={`font-medium ${rendimentoTotal >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                      {formatCurrency(rendimentoTotal)} ({totalInvestido > 0 ? ((rendimentoTotal / totalInvestido) * 100).toFixed(2) : "0.00"}%)
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span>Rendimento desde última atualização:</span>
+                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                      {formatCurrency(rendimentoDesdeUltima)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Outros investimentos (não-ETF e não-Tesouro) */}
+                  {sortedYieldInvestments.filter(inv => inv.investment_type !== "ETF" && inv.investment_type !== "TREASURY").map((inv) => {
                     const update = yieldUpdates[inv.id];
                     const currentGross = parseFloat(update?.gross_yield || "0");
                     const effectiveAmount = getEffectiveAmount(inv);
