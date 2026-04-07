@@ -60,7 +60,11 @@ export class MonthlyFlowService {
 
       // Get monthly investments
       const investments = await this.investmentRepository.findByMonthAndUser(userId, monthStr, year)
-      const monthlyInvestments = investments.reduce((sum, investment) => sum + Number(investment.amount), 0)
+      const monthlyInvestments = investments.reduce((sum, investment) => {
+        const amount = Number(investment.amount)
+        const qty = investment.quantity ? Number(investment.quantity) : 1
+        return sum + (investment.investment_type === 'ETF' ? amount * qty : amount)
+      }, 0)
 
       // Calculate balance for the month
       const monthlyBalance = monthlyIncome - monthlyExpenses - monthlyCreditCard - monthlyInvestments

@@ -14,6 +14,8 @@ export interface CreateInvestmentData {
   interestRate?: number
   quantity?: number
   broker?: string
+  ticker?: string
+  dividendYield?: number
   status?: InvestmentStatus
   notes?: string
   userId: string
@@ -34,6 +36,8 @@ export interface UpdateInvestmentData {
   interestRate?: number
   quantity?: number
   broker?: string
+  ticker?: string
+  dividendYield?: number
   status?: InvestmentStatus
   notes?: string
   userId: string

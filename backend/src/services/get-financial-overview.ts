@@ -174,7 +174,11 @@ export class GetFinancialOverviewService {
 
     // Calcular total real dos investimentos mensais
     const realInvestmentsTotal = monthlyInvestments.reduce(
-      (sum, investment) => sum + Number(investment.amount),
+      (sum, investment) => {
+        const amount = Number(investment.amount)
+        const qty = investment.quantity ? Number(investment.quantity) : 1
+        return sum + (investment.investment_type === 'ETF' ? amount * qty : amount)
+      },
       0,
     );
 

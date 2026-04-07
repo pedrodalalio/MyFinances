@@ -19,6 +19,8 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
         interest_rate: data.interestRate,
         quantity: data.quantity,
         broker: data.broker,
+        ticker: data.ticker,
+        dividend_yield: data.dividendYield,
         status: data.status,
         notes: data.notes,
         user_id: data.userId
@@ -75,6 +77,8 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
     if (data.interestRate !== undefined) updateData.interest_rate = data.interestRate
     if (data.quantity !== undefined) updateData.quantity = data.quantity
     if (data.broker !== undefined) updateData.broker = data.broker
+    if (data.ticker !== undefined) updateData.ticker = data.ticker
+    if (data.dividendYield !== undefined) updateData.dividend_yield = data.dividendYield
     if (data.status !== undefined) updateData.status = data.status
     if (data.notes !== undefined) updateData.notes = data.notes
 

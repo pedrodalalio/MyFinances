@@ -86,6 +86,7 @@ const investmentFormSchema = z.object({
       "LCI_LCA",
       "DEBENTURES",
       "TREASURY",
+      "ETF",
       "OTHER",
     ],
     {
@@ -99,6 +100,8 @@ const investmentFormSchema = z.object({
   interest_rate: z.string().optional(),
   quantity: z.string().optional(),
   broker: z.string().optional(),
+  ticker: z.string().optional(),
+  dividend_yield: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -121,6 +124,8 @@ interface Investment {
   interest_rate?: number;
   quantity?: number;
   broker?: string;
+  ticker?: string;
+  dividend_yield?: number;
   status: string;
   notes?: string;
   updated_at?: string;
@@ -134,7 +139,9 @@ interface YieldInvestment {
   net_value: number | null;
   investment_type: string;
   interest_rate: number | null;
+  quantity: number | null;
   broker: string | null;
+  ticker: string | null;
   purchase_date: string | null;
   status: string;
   updated_at: string | null;
@@ -174,6 +181,7 @@ const getInvestmentTypeLabel = (type: string): string => {
     LCI_LCA: "LCI/LCA",
     DEBENTURES: "Debêntures",
     TREASURY: "Tesouro Direto",
+    ETF: "ETF",
     OTHER: "Outros",
   };
   return labels[type] || type;
@@ -192,6 +200,13 @@ const getStatusBadgeColor = (status: string) => {
     default:
       return "default";
   }
+};
+
+const getEffectiveAmount = (inv: { amount: number; quantity?: number; investment_type: string }): number => {
+  if (inv.investment_type === "ETF" && inv.quantity) {
+    return inv.amount * inv.quantity;
+  }
+  return inv.amount;
 };
 
 const getStatusLabel = (status: string) => {
@@ -224,8 +239,54 @@ const UnifiedInvestmentsPage = () => {
   const [expandedPortfolioGroups, setExpandedPortfolioGroups] = useState<Set<string>>(new Set());
   const [yieldInvestments, setYieldInvestments] = useState<YieldInvestment[]>([]);
   const [yieldUpdates, setYieldUpdates] = useState<Record<string, InvestmentYieldUpdate>>({});
+  const [etfPrices, setEtfPrices] = useState<Record<string, string>>({});
+  const [yieldSortBy, setYieldSortBy] = useState<"date" | "name">("date");
   const [savingYields, setSavingYields] = useState(false);
   const [loadingYields, setLoadingYields] = useState(false);
+  const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
+
+  // Tipos disponíveis para filtro
+  const availableInvestmentTypes = React.useMemo(() => {
+    if (!portfolio) return [];
+    const types = Array.from(new Set(portfolio.allInvestments.map(inv => inv.investment_type)));
+    return types.map(type => ({ value: type, label: getInvestmentTypeLabel(type) }));
+  }, [portfolio]);
+
+  // Investimentos filtrados
+  const filteredInvestments = React.useMemo(() => {
+    if (!portfolio) return [];
+    if (portfolioFilter === "all") return portfolio.allInvestments;
+    return portfolio.allInvestments.filter(inv => inv.investment_type === portfolioFilter);
+  }, [portfolio, portfolioFilter]);
+
+  // Resumo calculado com base no filtro
+  const filteredSummary = React.useMemo(() => {
+    if (!portfolio) return null;
+    if (portfolioFilter === "all") return portfolio.summary;
+
+    let totalInvested = 0;
+    let currentValue = 0;
+    let netValue = 0;
+
+    filteredInvestments.forEach(inv => {
+      const effectiveAmount = getEffectiveAmount(inv);
+      totalInvested += effectiveAmount;
+      currentValue += inv.gross_yield ?? effectiveAmount;
+      netValue += inv.net_value ?? inv.gross_yield ?? effectiveAmount;
+    });
+
+    const totalReturn = currentValue - totalInvested;
+    const returnPercentage = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
+
+    return {
+      totalInvested,
+      currentValue,
+      netValue,
+      totalReturn,
+      returnPercentage,
+      lastUpdated: portfolio.summary.lastUpdated,
+    };
+  }, [portfolio, portfolioFilter, filteredInvestments]);
 
   // Agrupar investimentos do portfolio por nome + taxa
   const portfolioGroups = React.useMemo(() => {
@@ -245,16 +306,18 @@ const UnifiedInvestmentsPage = () => {
       }
     >();
 
-    portfolio.allInvestments.forEach((inv) => {
+    filteredInvestments.forEach((inv) => {
       const rate = inv.interest_rate ?? null;
       const key = `${inv.name}_${rate ?? "none"}`;
       const existing = groups.get(key);
 
+      const effectiveAmount = getEffectiveAmount(inv);
+
       if (existing) {
         existing.investments.push(inv);
-        existing.totalAmount += inv.amount;
-        existing.totalGross += inv.gross_yield ?? inv.amount;
-        existing.totalNet += inv.net_value ?? inv.gross_yield ?? inv.amount;
+        existing.totalAmount += effectiveAmount;
+        existing.totalGross += inv.gross_yield ?? effectiveAmount;
+        existing.totalNet += inv.net_value ?? inv.gross_yield ?? effectiveAmount;
       } else {
         groups.set(key, {
           key,
@@ -263,15 +326,15 @@ const UnifiedInvestmentsPage = () => {
           rate,
           broker: inv.broker ?? null,
           investments: [inv],
-          totalAmount: inv.amount,
-          totalGross: inv.gross_yield ?? inv.amount,
-          totalNet: inv.net_value ?? inv.gross_yield ?? inv.amount,
+          totalAmount: effectiveAmount,
+          totalGross: inv.gross_yield ?? effectiveAmount,
+          totalNet: inv.net_value ?? inv.gross_yield ?? effectiveAmount,
         });
       }
     });
 
     return Array.from(groups.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [portfolio]);
+  }, [filteredInvestments]);
 
   const togglePortfolioGroup = (key: string) => {
     setExpandedPortfolioGroups((prev) => {
@@ -322,12 +385,7 @@ const UnifiedInvestmentsPage = () => {
       setLoadingYields(true);
       const response = await api.get("/investments/portfolio");
       const investments: YieldInvestment[] = response.data.portfolio.allInvestments
-        .filter((inv: YieldInvestment) => inv.status === "ACTIVE")
-        .sort((a: YieldInvestment, b: YieldInvestment) => {
-          const dateA = a.purchase_date ? new Date(a.purchase_date).getTime() : 0;
-          const dateB = b.purchase_date ? new Date(b.purchase_date).getTime() : 0;
-          return dateA - dateB;
-        });
+        .filter((inv: YieldInvestment) => inv.status === "ACTIVE");
       setYieldInvestments(investments);
 
       const updates: Record<string, InvestmentYieldUpdate> = {};
@@ -351,6 +409,23 @@ const UnifiedInvestmentsPage = () => {
     }
   }, [activeTab, loadYieldInvestments]);
 
+  const sortedYieldInvestments = React.useMemo(() => {
+    const sorted = [...yieldInvestments].sort((a, b) => {
+      // Primeiro agrupar por tipo
+      if (a.investment_type !== b.investment_type) {
+        return a.investment_type.localeCompare(b.investment_type);
+      }
+      // Dentro do tipo, ordenar pelo critério selecionado
+      if (yieldSortBy === "name") {
+        return a.name.localeCompare(b.name);
+      }
+      const dateA = a.purchase_date ? new Date(a.purchase_date).getTime() : 0;
+      const dateB = b.purchase_date ? new Date(b.purchase_date).getTime() : 0;
+      return dateA - dateB;
+    });
+    return sorted;
+  }, [yieldInvestments, yieldSortBy]);
+
   const handleYieldFieldChange = (
     investmentId: string,
     field: "gross_yield" | "net_value",
@@ -370,6 +445,16 @@ const UnifiedInvestmentsPage = () => {
       setSavingYields(true);
 
       const updatePromises = yieldInvestments.map((inv) => {
+        // Para ETFs, calcular gross_yield a partir do preço da cota
+        if (inv.investment_type === "ETF" && inv.ticker) {
+          const priceStr = etfPrices[inv.ticker];
+          if (!priceStr) return Promise.resolve();
+          const price = parseFloat(priceStr);
+          if (isNaN(price) || !inv.quantity) return Promise.resolve();
+          const grossYield = price * inv.quantity;
+          return api.put(`/monthly-investments/${inv.id}`, { gross_yield: grossYield });
+        }
+
         const update = yieldUpdates[inv.id];
         if (!update) return Promise.resolve();
 
@@ -418,6 +503,10 @@ const UnifiedInvestmentsPage = () => {
           : undefined,
         quantity: values.quantity ? parseFloat(values.quantity) : undefined,
         broker: values.broker || undefined,
+        ticker: values.ticker || undefined,
+        dividend_yield: values.dividend_yield
+          ? parseFloat(values.dividend_yield)
+          : undefined,
         notes: values.notes || undefined,
       };
 
@@ -458,6 +547,10 @@ const UnifiedInvestmentsPage = () => {
           : undefined,
         quantity: values.quantity ? parseFloat(values.quantity) : undefined,
         broker: values.broker || undefined,
+        ticker: values.ticker || undefined,
+        dividend_yield: values.dividend_yield
+          ? parseFloat(values.dividend_yield)
+          : undefined,
         notes: values.notes || undefined,
       };
 
@@ -519,6 +612,8 @@ const UnifiedInvestmentsPage = () => {
       interest_rate: investment.interest_rate?.toString() || "",
       quantity: investment.quantity?.toString() || "",
       broker: investment.broker || "",
+      ticker: investment.ticker || "",
+      dividend_yield: investment.dividend_yield?.toString() || "",
       notes: investment.notes || "",
     });
     setIsDialogOpen(true);
@@ -541,6 +636,8 @@ const UnifiedInvestmentsPage = () => {
       interest_rate: "",
       quantity: "",
       broker: "",
+      ticker: "",
+      dividend_yield: "",
       notes: "",
     });
     setIsDialogOpen(true);
@@ -625,6 +722,7 @@ const UnifiedInvestmentsPage = () => {
                             <SelectItem value="TREASURY">
                               Tesouro Direto
                             </SelectItem>
+                            <SelectItem value="ETF">ETF</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -933,6 +1031,82 @@ const UnifiedInvestmentsPage = () => {
                   </div>
                 )}
 
+                {selectedInvestmentType === "ETF" && (
+                  <div className="border-t pt-4 space-y-4">
+                    <h4 className="font-medium mb-3">Informações do ETF</h4>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="ticker"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ticker</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ex: IVVB11, BOVA11..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="broker"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Corretora</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Ex: Inter, XP, BTG..."
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="quantity"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quantidade de Cotas</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                step="1"
+                                placeholder="Ex: 10"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="purchase_date"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Data da Compra</FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <FormField
                   control={form.control}
                   name="notes"
@@ -988,8 +1162,25 @@ const UnifiedInvestmentsPage = () => {
 
         <TabsContent value="portfolio" className="space-y-4">
           {/* Resumo do Portfolio */}
-          {portfolio && (
+          {portfolio && filteredSummary && (
             <>
+              {/* Filtro por tipo */}
+              <div className="flex items-center gap-2">
+                <Select value={portfolioFilter} onValueChange={setPortfolioFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filtrar por tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {availableInvestmentTypes.map(type => (
+                      <SelectItem key={type.value} value={type.value}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1000,7 +1191,7 @@ const UnifiedInvestmentsPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {formatCurrency(portfolio.summary.totalInvested)}
+                      {formatCurrency(filteredSummary.totalInvested)}
                     </div>
                   </CardContent>
                 </Card>
@@ -1014,7 +1205,7 @@ const UnifiedInvestmentsPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {formatCurrency(portfolio.summary.currentValue)}
+                      {formatCurrency(filteredSummary.currentValue)}
                     </div>
                   </CardContent>
                 </Card>
@@ -1028,7 +1219,7 @@ const UnifiedInvestmentsPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-green-600">
-                      {formatCurrency(portfolio.summary.netValue)}
+                      {formatCurrency(filteredSummary.netValue)}
                     </div>
                   </CardContent>
                 </Card>
@@ -1042,9 +1233,9 @@ const UnifiedInvestmentsPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div
-                      className={`text-2xl font-bold ${portfolio.summary.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}
+                      className={`text-2xl font-bold ${filteredSummary.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}
                     >
-                      {formatCurrency(portfolio.summary.totalReturn)}
+                      {formatCurrency(filteredSummary.totalReturn)}
                     </div>
                   </CardContent>
                 </Card>
@@ -1058,20 +1249,17 @@ const UnifiedInvestmentsPage = () => {
                   </CardHeader>
                   <CardContent>
                     <div
-                      className={`text-2xl font-bold ${portfolio.summary.returnPercentage >= 0 ? "text-green-600" : "text-red-600"}`}
+                      className={`text-2xl font-bold ${filteredSummary.returnPercentage >= 0 ? "text-green-600" : "text-red-600"}`}
                     >
-                      {portfolio.summary.returnPercentage.toFixed(2)}%
+                      {filteredSummary.returnPercentage.toFixed(2)}%
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
               {/* Gráficos e Análises */}
-              {portfolio.allInvestments.length > 0 && (
-                <div className="space-y-4">
-                  <h2 className="text-2xl font-bold">Análise do Portfolio</h2>
-                  <InvestmentCharts investments={portfolio.allInvestments} />
-                </div>
+              {filteredInvestments.length > 0 && (
+                <InvestmentCharts investments={filteredInvestments} selectedFilter={portfolioFilter} />
               )}
 
               {/* Listagem agrupada */}
@@ -1161,6 +1349,18 @@ const UnifiedInvestmentsPage = () => {
                                         <span className="text-muted-foreground text-xs">Aplicado</span>
                                         <div className="font-medium">{formatCurrency(investment.amount)}</div>
                                       </div>
+                                      {investment.investment_type === "ETF" && investment.quantity != null && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Cotas</span>
+                                          <div className="font-medium">{investment.quantity}</div>
+                                        </div>
+                                      )}
+                                      {investment.investment_type === "ETF" && investment.quantity != null && (
+                                        <div>
+                                          <span className="text-muted-foreground text-xs">Total</span>
+                                          <div className="font-medium">{formatCurrency(getEffectiveAmount(investment))}</div>
+                                        </div>
+                                      )}
                                       {investment.gross_yield != null && (
                                         <div>
                                           <span className="text-muted-foreground text-xs">Bruto</span>
@@ -1242,7 +1442,18 @@ const UnifiedInvestmentsPage = () => {
         <TabsContent value="yields" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Atualizar Rendimentos dos Investimentos</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg">Atualizar Rendimentos dos Investimentos</CardTitle>
+                <Select value={yieldSortBy} onValueChange={(v) => setYieldSortBy(v as "date" | "name")}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="date">Ordenar por Data</SelectItem>
+                    <SelectItem value="name">Ordenar por Nome</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <p className="text-sm text-muted-foreground">
                 Atualize os valores brutos e líquidos de cada investimento conforme o app do banco.
                 Os valores devem ser o <strong>valor total atual</strong> (aplicado + rendimento).
@@ -1254,16 +1465,117 @@ const UnifiedInvestmentsPage = () => {
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   <span className="ml-2 text-muted-foreground">Carregando investimentos...</span>
                 </div>
-              ) : yieldInvestments.length === 0 ? (
+              ) : sortedYieldInvestments.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhum investimento ativo encontrado.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {yieldInvestments.map((inv) => {
+                  {/* ETFs agrupados por ticker */}
+                  {(() => {
+                    const etfInvestments = sortedYieldInvestments.filter(inv => inv.investment_type === "ETF" && inv.ticker);
+                    const etfTickers = Array.from(new Set(etfInvestments.map(inv => inv.ticker!)));
+
+                    if (etfTickers.length === 0) return null;
+
+                    return (
+                      <div className="space-y-4">
+                        <h4 className="font-medium text-sm text-muted-foreground">ETFs</h4>
+                        {etfTickers.map((ticker) => {
+                          const tickerInvestments = etfInvestments.filter(inv => inv.ticker === ticker);
+                          const totalCotas = tickerInvestments.reduce((sum, inv) => sum + (inv.quantity || 0), 0);
+                          const totalInvestido = tickerInvestments.reduce((sum, inv) => sum + getEffectiveAmount(inv), 0);
+                          const currentPrice = parseFloat(etfPrices[ticker] || "0");
+                          const valorAtual = currentPrice > 0 ? currentPrice * totalCotas : 0;
+                          const rendimento = valorAtual - totalInvestido;
+                          const previousGrossTotal = tickerInvestments.reduce((sum, inv) => sum + (inv.gross_yield ?? getEffectiveAmount(inv)), 0);
+                          const rendimentoDesdeUltima = valorAtual - previousGrossTotal;
+
+                          return (
+                            <div key={ticker} className="border rounded-lg p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <h4 className="font-medium">{ticker}</h4>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <Badge variant="outline" className="text-xs">ETF</Badge>
+                                    <span className="text-xs text-muted-foreground">
+                                      {totalCotas} cotas
+                                    </span>
+                                    {tickerInvestments[0]?.broker && (
+                                      <span className="text-xs text-muted-foreground">
+                                        {tickerInvestments[0].broker}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-xs text-muted-foreground">Total Investido</span>
+                                  <div className="font-semibold">{formatCurrency(totalInvestido)}</div>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                    Preço Atual da Cota (R$)
+                                  </label>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Ex: 48.50"
+                                    value={etfPrices[ticker] || ""}
+                                    onChange={(e) =>
+                                      setEtfPrices((prev) => ({ ...prev, [ticker]: e.target.value }))
+                                    }
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-xs font-medium text-muted-foreground block mb-1">
+                                    Valor Atual Total
+                                  </label>
+                                  <div className="h-9 flex items-center font-semibold">
+                                    {currentPrice > 0 ? formatCurrency(valorAtual) : "—"}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {currentPrice > 0 && (
+                                <div className="text-xs text-muted-foreground space-y-0.5">
+                                  <div>
+                                    Rendimento (total):{" "}
+                                    <span
+                                      className={`font-medium ${
+                                        rendimento >= 0 ? "text-green-600" : "text-red-600"
+                                      }`}
+                                    >
+                                      {formatCurrency(rendimento)} ({((rendimento / totalInvestido) * 100).toFixed(2)}%)
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Rendimento desde última atualização:{" "}
+                                    <span
+                                      className={`font-medium ${
+                                        rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"
+                                      }`}
+                                    >
+                                      {formatCurrency(rendimentoDesdeUltima)}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Outros investimentos (não-ETF) */}
+                  {sortedYieldInvestments.filter(inv => inv.investment_type !== "ETF").map((inv) => {
                     const update = yieldUpdates[inv.id];
                     const currentGross = parseFloat(update?.gross_yield || "0");
-                    const rendimento = currentGross - inv.amount;
+                    const effectiveAmount = getEffectiveAmount(inv);
+                    const rendimento = currentGross - effectiveAmount;
 
                     return (
                       <div
@@ -1275,7 +1587,7 @@ const UnifiedInvestmentsPage = () => {
                             <h4 className="font-medium">{inv.name}</h4>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="outline" className="text-xs">
-                                {inv.investment_type}
+                                {getInvestmentTypeLabel(inv.investment_type)}
                               </Badge>
                               {inv.interest_rate != null && (
                                 <Badge variant="secondary" className="text-xs">
@@ -1296,7 +1608,7 @@ const UnifiedInvestmentsPage = () => {
                           </div>
                           <div className="text-right">
                             <span className="text-xs text-muted-foreground">Aplicado</span>
-                            <div className="font-semibold">{formatCurrency(inv.amount)}</div>
+                            <div className="font-semibold">{formatCurrency(effectiveAmount)}</div>
                           </div>
                         </div>
 
@@ -1331,18 +1643,34 @@ const UnifiedInvestmentsPage = () => {
                           </div>
                         </div>
 
-                        {currentGross > 0 && (
-                          <div className="text-xs text-muted-foreground">
-                            Rendimento bruto:{" "}
-                            <span
-                              className={`font-medium ${
-                                rendimento >= 0 ? "text-green-600" : "text-red-600"
-                              }`}
-                            >
-                              {formatCurrency(rendimento)} ({((rendimento / inv.amount) * 100).toFixed(2)}%)
-                            </span>
-                          </div>
-                        )}
+                        {currentGross > 0 && (() => {
+                          const previousGross = inv.gross_yield ?? effectiveAmount;
+                          const rendimentoDesdeUltima = currentGross - previousGross;
+                          return (
+                            <div className="text-xs text-muted-foreground space-y-0.5">
+                              <div>
+                                Rendimento bruto (total):{" "}
+                                <span
+                                  className={`font-medium ${
+                                    rendimento >= 0 ? "text-green-600" : "text-red-600"
+                                  }`}
+                                >
+                                  {formatCurrency(rendimento)} ({((rendimento / effectiveAmount) * 100).toFixed(2)}%)
+                                </span>
+                              </div>
+                              <div>
+                                Rendimento desde última atualização:{" "}
+                                <span
+                                  className={`font-medium ${
+                                    rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"
+                                  }`}
+                                >
+                                  {formatCurrency(rendimentoDesdeUltima)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}

@@ -15,7 +15,6 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 
 interface Investment {
@@ -26,13 +25,23 @@ interface Investment {
   gross_yield?: number;
   net_value?: number;
   amount: number;
+  quantity?: number;
   interest_rate?: number;
   broker?: string;
+  ticker?: string;
   purchase_date?: string;
 }
 
+const getEffectiveAmount = (inv: Investment): number => {
+  if (inv.investment_type === "ETF" && inv.quantity) {
+    return inv.amount * inv.quantity;
+  }
+  return inv.amount;
+};
+
 interface InvestmentChartsProps {
   investments: Investment[];
+  selectedFilter: string;
 }
 
 const formatCurrency = (value: number): string => {
@@ -52,6 +61,7 @@ const getInvestmentTypeLabel = (type: string): string => {
     FUNDS: "Fundos",
     CRYPTO: "Crypto",
     DEBENTURES: "Debêntures",
+    ETF: "ETF",
     OTHER: "Outros"
   };
   return labels[type] || type;
@@ -65,13 +75,13 @@ const COLORS = [
 ];
 
 export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
-  investments
+  investments,
+  selectedFilter
 }) => {
-  const [selectedFilter, setSelectedFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"type" | "rate" | "individual">("rate");
 
   // Quando muda o filtro, ajustar o viewMode automaticamente
-  const effectiveViewMode = selectedFilter === "all" ? "rate" : viewMode;
+  const effectiveViewMode = selectedFilter === "all" ? "rate" : (selectedFilter === "ETF" && viewMode === "rate" ? "type" : viewMode);
 
   // Filtrar investimentos baseado na seleção
   const filteredInvestments = React.useMemo(() => {
@@ -79,19 +89,18 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
     return investments.filter(inv => inv.investment_type === selectedFilter);
   }, [investments, selectedFilter]);
 
-  // Tipos disponíveis para filtro
-  const availableTypes = React.useMemo(() => {
-    const types = Array.from(new Set(investments.map(inv => inv.investment_type)));
-    return types.map(type => ({ value: type, label: getInvestmentTypeLabel(type) }));
-  }, [investments]);
   // Dados para distribuição
   const distributionData = React.useMemo(() => {
     if (effectiveViewMode === "type") {
+      const isETFFilter = selectedFilter === "ETF";
       const typeMap = new Map<string, number>();
       filteredInvestments.forEach(investment => {
-        const type = getInvestmentTypeLabel(investment.investment_type);
-        const value = investment.gross_yield || investment.amount;
-        typeMap.set(type, (typeMap.get(type) || 0) + Number(value));
+        const key = isETFFilter
+          ? (investment.ticker || investment.name)
+          : getInvestmentTypeLabel(investment.investment_type);
+        const effectiveAmount = getEffectiveAmount(investment);
+        const value = investment.gross_yield || effectiveAmount;
+        typeMap.set(key, (typeMap.get(key) || 0) + Number(value));
       });
       return Array.from(typeMap.entries()).map(([name, value]) => ({
         name, fullName: name, value, percentage: 0
@@ -101,20 +110,24 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
       filteredInvestments.forEach(investment => {
         const rate = investment.interest_rate != null ? `${investment.interest_rate}%` : "Sem taxa";
         const label = `${getInvestmentTypeLabel(investment.investment_type)} ${rate}`;
-        const value = investment.gross_yield || investment.amount;
+        const effectiveAmount = getEffectiveAmount(investment);
+        const value = investment.gross_yield || effectiveAmount;
         rateMap.set(label, (rateMap.get(label) || 0) + Number(value));
       });
       return Array.from(rateMap.entries()).map(([name, value]) => ({
         name, fullName: name, value, percentage: 0
       }));
     } else {
-      return filteredInvestments.map((investment) => ({
-        name: investment.name.length > 20 ? investment.name.substring(0, 20) + '...' : investment.name,
-        fullName: investment.name,
-        value: investment.gross_yield || investment.amount,
-        percentage: 0,
-        investmentId: investment.id
-      }));
+      return filteredInvestments.map((investment) => {
+        const effectiveAmount = getEffectiveAmount(investment);
+        return {
+          name: investment.name.length > 20 ? investment.name.substring(0, 20) + '...' : investment.name,
+          fullName: investment.name,
+          value: investment.gross_yield || effectiveAmount,
+          percentage: 0,
+          investmentId: investment.id
+        };
+      });
     }
   }, [filteredInvestments, effectiveViewMode]);
 
@@ -128,9 +141,9 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   // Dados para o gráfico de rentabilidade por investimento
   const profitabilityData = React.useMemo(() => {
     return filteredInvestments.map(investment => {
-      const initialValue = Number(investment.amount);
-      const currentValue = Number(investment.gross_yield || investment.amount);
-      const netValue = Number(investment.net_value || investment.gross_yield || investment.amount);
+      const initialValue = getEffectiveAmount(investment);
+      const currentValue = Number(investment.gross_yield || initialValue);
+      const netValue = Number(investment.net_value || investment.gross_yield || initialValue);
       const profit = currentValue - initialValue;
       const profitPercentage = initialValue > 0 ? (profit / initialValue) * 100 : 0;
 
@@ -152,9 +165,9 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
       const rate = inv.interest_rate != null ? `${inv.interest_rate}%` : "Sem taxa";
       const label = `${getInvestmentTypeLabel(inv.investment_type)} ${rate}`;
       const existing = groups.get(label);
-      const amount = Number(inv.amount);
-      const gross = Number(inv.gross_yield || inv.amount);
-      const net = Number(inv.net_value || inv.gross_yield || inv.amount);
+      const amount = getEffectiveAmount(inv);
+      const gross = Number(inv.gross_yield || amount);
+      const net = Number(inv.net_value || inv.gross_yield || amount);
       if (existing) {
         existing.investido += amount;
         existing.bruto += gross;
@@ -247,50 +260,34 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Controles de filtro */}
-      <div className="flex flex-wrap gap-4 items-center justify-between">
-        <div className="flex gap-4 items-center">
-          <Select value={selectedFilter} onValueChange={setSelectedFilter}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrar por tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os tipos</SelectItem>
-              {availableTypes.map(type => (
-                <SelectItem key={type.value} value={type.value}>
-                  {type.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {selectedFilter !== "all" && (
-            <div className="flex gap-2">
-              <Button
-                variant={viewMode === "type" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("type")}
-              >
-                Por Tipo
-              </Button>
-              <Button
-                variant={viewMode === "rate" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("rate")}
-              >
-                Por Taxa
-              </Button>
-              <Button
-                variant={viewMode === "individual" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("individual")}
-              >
-                Individual
-              </Button>
-            </div>
+      {/* Controles de visualização */}
+      {selectedFilter !== "all" && (
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === "type" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("type")}
+          >
+            Por Tipo
+          </Button>
+          {selectedFilter !== "ETF" && (
+            <Button
+              variant={viewMode === "rate" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("rate")}
+            >
+              Por Taxa
+            </Button>
           )}
+          <Button
+            variant={viewMode === "individual" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setViewMode("individual")}
+          >
+            Individual
+          </Button>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Gráfico de Pizza - Distribuição */}
@@ -449,9 +446,9 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                 </thead>
                 <tbody>
                   {filteredInvestments.map((investment) => {
-                    const initialValue = Number(investment.amount);
-                    const currentValue = Number(investment.gross_yield || investment.amount);
-                    const netValue = Number(investment.net_value || investment.gross_yield || investment.amount);
+                    const initialValue = getEffectiveAmount(investment);
+                    const currentValue = Number(investment.gross_yield || initialValue);
+                    const netValue = Number(investment.net_value || investment.gross_yield || initialValue);
                     const totalReturn = currentValue - initialValue;
                     const returnPercentage = initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
 

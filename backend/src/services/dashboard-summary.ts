@@ -87,8 +87,12 @@ export class DashboardSummaryService {
     const investmentsWithPortfolio =
       await this.investmentRepository.findAllPortfolioByUser(userId);
     const totalInvestments = investmentsWithPortfolio.reduce(
-      (sum, investment) =>
-        sum + Number(investment.gross_yield || investment.amount),
+      (sum, investment) => {
+        const amount = Number(investment.amount)
+        const qty = investment.quantity ? Number(investment.quantity) : 1
+        const effectiveAmount = investment.investment_type === 'ETF' ? amount * qty : amount
+        return sum + Number(investment.gross_yield || effectiveAmount)
+      },
       0,
     );
 

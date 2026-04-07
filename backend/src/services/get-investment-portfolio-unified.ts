@@ -25,6 +25,7 @@ interface SerializedInvestment {
   interest_rate: number | null
   quantity: number | null
   broker: string | null
+  ticker: string | null
   status: string
   notes: string | null
   updated_at: Date
@@ -62,6 +63,7 @@ export class GetInvestmentPortfolioUnifiedService {
         interest_rate: inv.interest_rate ? Number(inv.interest_rate) : null,
         quantity: inv.quantity ? Number(inv.quantity) : null,
         broker: inv.broker,
+        ticker: inv.ticker,
         status: inv.status,
         notes: inv.notes,
         updated_at: inv.updated_at,
@@ -69,20 +71,30 @@ export class GetInvestmentPortfolioUnifiedService {
     }
   }
 
+  private getEffectiveAmount(inv: Investment): number {
+    const amount = Number(inv.amount || 0)
+    if (inv.investment_type === 'ETF' && inv.quantity) {
+      return amount * Number(inv.quantity)
+    }
+    return amount
+  }
+
   private calculateSummary(investments: Investment[]): PortfolioSummary {
     const totalInvested = investments.reduce((sum, inv) => {
-      return sum + Number(inv.amount || 0)
+      return sum + this.getEffectiveAmount(inv)
     }, 0)
 
     // Para valor atual, usar gross_yield ou valor investido
     const currentValue = investments.reduce((sum, inv) => {
-      const value = inv.gross_yield || inv.amount || 0
-      return sum + Number(value)
+      const effectiveAmount = this.getEffectiveAmount(inv)
+      const value = inv.gross_yield ? Number(inv.gross_yield) : effectiveAmount
+      return sum + value
     }, 0)
 
     const netValue = investments.reduce((sum, inv) => {
-      const value = inv.net_value || inv.gross_yield || inv.amount || 0
-      return sum + Number(value)
+      const effectiveAmount = this.getEffectiveAmount(inv)
+      const value = inv.net_value ? Number(inv.net_value) : (inv.gross_yield ? Number(inv.gross_yield) : effectiveAmount)
+      return sum + value
     }, 0)
 
     const totalReturn = currentValue - totalInvested

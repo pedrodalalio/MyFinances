@@ -17,6 +17,8 @@ interface UpdateInvestmentServiceRequest {
   interestRate?: number
   quantity?: number
   broker?: string
+  ticker?: string
+  dividendYield?: number
   notes?: string
   userId: string
 }
@@ -61,6 +63,8 @@ export class UpdateInvestmentService {
     interestRate,
     quantity,
     broker,
+    ticker,
+    dividendYield,
     notes,
     userId
   }: UpdateInvestmentServiceRequest): Promise<UpdateInvestmentServiceResponse> {
@@ -85,6 +89,8 @@ export class UpdateInvestmentService {
       interestRate,
       quantity,
       broker,
+      ticker,
+      dividendYield,
       notes,
       userId
     })
