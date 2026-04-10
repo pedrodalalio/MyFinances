@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, Wallet, Trash2, Edit } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -183,6 +184,7 @@ const ExpensesPage = () => {
       setIsDialogOpen(false);
       form.reset();
       loadExpenses();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao criar gasto:", error);
     } finally {
@@ -225,6 +227,7 @@ const ExpensesPage = () => {
       setEditingExpense(null);
       form.reset();
       loadExpenses();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar gasto:", error);
     } finally {
@@ -236,6 +239,7 @@ const ExpensesPage = () => {
     try {
       await api.delete(`/expenses/${id}`);
       loadExpenses();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao deletar gasto:", error);
     }

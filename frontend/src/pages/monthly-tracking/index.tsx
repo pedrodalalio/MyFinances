@@ -11,6 +11,7 @@ import {
   ArrowDownLeft,
 } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -372,6 +373,7 @@ const MonthlyTrackingPage = () => {
       setEditingInstallment(null);
       editForm.reset();
       setOverviewKey((prev) => prev + 1); // Força o FinancialOverview a recarregar
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar parcela:", error);
     }

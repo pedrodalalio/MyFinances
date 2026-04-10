@@ -5,6 +5,7 @@ import { getByMonth } from "./get-by-month"
 import { update } from "./update"
 import { deleteInvestment } from "./delete"
 import { getPortfolio } from "./get-portfolio"
+import { getInvestmentHistory } from "./get-history"
 
 export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
   app.addHook('onRequest', verifyJWT)
@@ -17,4 +18,5 @@ export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
 
   // Portfolio unified routes (new)
   app.get('/investments/portfolio', getPortfolio)
+  app.get('/investments/history', getInvestmentHistory)
 }

@@ -259,8 +259,22 @@ model Investment {
   updated_at          DateTime           @updatedAt
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  snapshots InvestmentSnapshot[]
 
   @@map("investments")
+}
+
+model InvestmentSnapshot {
+  id              String   @id @default(uuid())
+  investment_id   String
+  gross_yield     Decimal
+  net_value       Decimal?
+  recorded_at     DateTime @default(now())
+
+  investment Investment @relation(fields: [investment_id], references: [id], onDelete: Cascade)
+
+  @@index([investment_id, recorded_at])
+  @@map("investment_snapshots")
 }
 
 enum ImportTransactionType {

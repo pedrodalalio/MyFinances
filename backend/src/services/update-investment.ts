@@ -1,6 +1,7 @@
 import { InvestmentRepository } from '@/repositories/investment-repository'
 import { InvestmentType } from '@prisma/client'
 import { ResourceNotFoundError } from './errors/resource-not-found-error'
+import { prisma } from '@/lib/prisma'
 
 interface UpdateInvestmentServiceRequest {
   investmentId: string
@@ -72,6 +73,20 @@ export class UpdateInvestmentService {
 
     if (!investmentExists) {
       throw new ResourceNotFoundError()
+    }
+
+    // Salvar snapshot quando gross_yield ou net_value são atualizados
+    if (grossYield !== undefined || netValue !== undefined) {
+      const snapshotGross = grossYield ?? Number(investmentExists.gross_yield ?? investmentExists.amount)
+      const snapshotNet = netValue ?? (investmentExists.net_value ? Number(investmentExists.net_value) : null)
+
+      await prisma.investmentSnapshot.create({
+        data: {
+          investment_id: investmentId,
+          gross_yield: snapshotGross,
+          net_value: snapshotNet,
+        }
+      })
     }
 
     const investment = await this.investmentRepository.update({

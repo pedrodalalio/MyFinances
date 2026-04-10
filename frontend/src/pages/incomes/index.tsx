@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, ArrowDownLeft, Trash2, Edit } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -167,6 +168,7 @@ const IncomesPage = () => {
       setIsDialogOpen(false);
       form.reset();
       loadIncomes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao criar entrada:", error);
     } finally {
@@ -209,6 +211,7 @@ const IncomesPage = () => {
       setEditingIncome(null);
       form.reset();
       loadIncomes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar entrada:", error);
     } finally {
@@ -220,6 +223,7 @@ const IncomesPage = () => {
     try {
       await api.delete(`/incomes/${id}`);
       loadIncomes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao deletar entrada:", error);
     }

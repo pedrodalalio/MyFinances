@@ -13,6 +13,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -127,6 +128,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
 
       const response = await api.get(`/financial-overview/${month}/${year}`);
       setOverview(response.data.overview);
+      refreshBalanceSummary();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
     } finally {

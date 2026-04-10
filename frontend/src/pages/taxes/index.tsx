@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, FileText, Trash2, Edit, Calendar, Clock } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -240,6 +241,7 @@ const TaxesPage = () => {
       setIsDialogOpen(false);
       form.reset();
       loadTaxes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao criar imposto:", error);
     } finally {
@@ -286,6 +288,7 @@ const TaxesPage = () => {
       setEditingTax(null);
       form.reset();
       loadTaxes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar imposto:", error);
     } finally {
@@ -297,6 +300,7 @@ const TaxesPage = () => {
     try {
       await api.delete(`/taxes/${id}`);
       loadTaxes();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao deletar imposto:", error);
     }

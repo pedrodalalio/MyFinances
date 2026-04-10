@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, CreditCard, Trash2, Edit, ChevronDown, ChevronUp, Check, X, Square } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -225,6 +226,7 @@ const CardsPage = () => {
       setIsDialogOpen(false);
       form.reset();
       loadPurchases();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao criar gasto:", error);
     } finally {
@@ -281,6 +283,7 @@ const CardsPage = () => {
       setEditingPurchase(null);
       form.reset();
       loadPurchases();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar gasto:", error);
     } finally {
@@ -292,6 +295,7 @@ const CardsPage = () => {
     try {
       await api.delete(`/credit-cards/purchases/${id}`);
       loadPurchases();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao deletar gasto:", error);
     }
@@ -305,6 +309,7 @@ const CardsPage = () => {
       setEditingInstallmentId(null);
       setEditingInstallmentValue("");
       loadPurchases();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar parcela:", error);
     }
@@ -325,6 +330,7 @@ const CardsPage = () => {
         end_year: parseInt(year),
       });
       loadPurchases();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao encerrar recorrência:", error);
     }

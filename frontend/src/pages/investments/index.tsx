@@ -6,6 +6,8 @@ import { z } from "zod";
 import {
   Plus,
   TrendingUp,
+  TrendingDown,
+  ArrowRight,
   Trash2,
   Edit,
   DollarSign,
@@ -19,6 +21,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -154,6 +157,20 @@ interface InvestmentYieldUpdate {
   net_value: string;
 }
 
+interface YieldChange {
+  id: string;
+  name: string;
+  type: string;
+  previousGrossYield: number;
+  newGrossYield: number;
+  grossYieldDiff: number;
+  grossYieldDiffPercent: number;
+  previousNetValue: number;
+  newNetValue: number;
+  netValueDiff: number;
+  netValueDiffPercent: number;
+}
+
 interface Portfolio {
   summary: {
     totalInvested: number;
@@ -257,6 +274,8 @@ const UnifiedInvestmentsPage = () => {
   const [savingYields, setSavingYields] = useState(false);
   const [loadingYields, setLoadingYields] = useState(false);
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
+  const [isYieldSummaryOpen, setIsYieldSummaryOpen] = useState(false);
+  const [yieldChanges, setYieldChanges] = useState<YieldChange[]>([]);
 
   // Tipos disponíveis para filtro
   const availableInvestmentTypes = React.useMemo(() => {
@@ -453,12 +472,67 @@ const UnifiedInvestmentsPage = () => {
     }));
   };
 
-  const handleSaveYields = async () => {
+  const handleSaveYields = () => {
+    const changes: YieldChange[] = [];
+
+    yieldInvestments.forEach((inv) => {
+      let newGrossYield: number;
+      let newNetValue: number;
+
+      if (inv.investment_type === "ETF" && inv.ticker) {
+        const priceStr = etfPrices[inv.ticker];
+        if (!priceStr) return;
+        const price = parseFloat(priceStr);
+        if (isNaN(price) || !inv.quantity) return;
+        newGrossYield = price * inv.quantity;
+        newNetValue = inv.net_value ?? 0;
+      } else {
+        const update = yieldUpdates[inv.id];
+        if (!update) return;
+        newGrossYield = parseFloat(update.gross_yield) || 0;
+        newNetValue = parseFloat(update.net_value) || 0;
+      }
+
+      const prevGross = inv.gross_yield ?? getEffectiveAmount(inv);
+      const prevNet = inv.net_value ?? prevGross;
+
+      const grossChanged = Math.abs(newGrossYield - prevGross) > 0.001;
+      const netChanged = Math.abs(newNetValue - prevNet) > 0.001;
+
+      if (!grossChanged && !netChanged) return;
+
+      const grossDiff = newGrossYield - prevGross;
+      const grossDiffPercent = prevGross !== 0 ? (grossDiff / prevGross) * 100 : 0;
+      const netDiff = newNetValue - prevNet;
+      const netDiffPercent = prevNet !== 0 ? (netDiff / prevNet) * 100 : 0;
+
+      changes.push({
+        id: inv.id,
+        name: inv.name,
+        type: inv.investment_type,
+        previousGrossYield: prevGross,
+        newGrossYield,
+        grossYieldDiff: grossDiff,
+        grossYieldDiffPercent: grossDiffPercent,
+        previousNetValue: prevNet,
+        newNetValue,
+        netValueDiff: netDiff,
+        netValueDiffPercent: netDiffPercent,
+      });
+    });
+
+    if (changes.length === 0) return;
+
+    setYieldChanges(changes);
+    setIsYieldSummaryOpen(true);
+  };
+
+  const confirmSaveYields = async () => {
     try {
       setSavingYields(true);
+      setIsYieldSummaryOpen(false);
 
       const updatePromises = yieldInvestments.map((inv) => {
-        // Para ETFs, calcular gross_yield a partir do preço da cota
         if (inv.investment_type === "ETF" && inv.ticker) {
           const priceStr = etfPrices[inv.ticker];
           if (!priceStr) return Promise.resolve();
@@ -486,6 +560,7 @@ const UnifiedInvestmentsPage = () => {
       await Promise.all(updatePromises);
       await loadPortfolio();
       await loadYieldInvestments();
+      refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao salvar rendimentos:", error);
     } finally {
@@ -527,6 +602,7 @@ const UnifiedInvestmentsPage = () => {
       setIsDialogOpen(false);
       form.reset();
       loadPortfolio();
+      refreshBalanceSummary();
 
     } catch (error) {
       console.error("Erro ao criar investimento:", error);
@@ -575,6 +651,7 @@ const UnifiedInvestmentsPage = () => {
       setEditingInvestment(null);
       form.reset();
       loadPortfolio();
+      refreshBalanceSummary();
 
     } catch (error) {
       console.error("Erro ao atualizar investimento:", error);
@@ -595,6 +672,7 @@ const UnifiedInvestmentsPage = () => {
     try {
       await api.delete(`/monthly-investments/${id}`);
       loadPortfolio();
+      refreshBalanceSummary();
 
     } catch (error) {
       console.error("Erro ao deletar investimento:", error);
@@ -1815,6 +1893,155 @@ const UnifiedInvestmentsPage = () => {
         </TabsContent>
 
       </Tabs>
+
+      {/* Modal de Resumo de Mudanças nos Rendimentos */}
+      <Dialog open={isYieldSummaryOpen} onOpenChange={setIsYieldSummaryOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Resumo das Alterações</DialogTitle>
+            <DialogDescription>
+              Confira as mudanças nos rendimentos antes de salvar
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {yieldChanges.map((change) => (
+              <div
+                key={change.id}
+                className="border border-border rounded-lg p-4 space-y-3"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-medium text-foreground">{change.name}</span>
+                    <Badge variant="outline" className="ml-2 text-xs">
+                      {getInvestmentTypeLabel(change.type)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {change.grossYieldDiff >= 0 ? (
+                      <TrendingUp className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <TrendingDown className="h-4 w-4 text-red-500" />
+                    )}
+                    <span
+                      className={`text-sm font-semibold ${
+                        change.grossYieldDiff >= 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      {change.grossYieldDiff >= 0 ? "+" : ""}
+                      {formatCurrency(change.grossYieldDiff)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Valor Bruto */}
+                <div className="flex items-center gap-3 text-sm">
+                  <span className="text-muted-foreground w-20">Bruto</span>
+                  <span className="text-foreground">{formatCurrency(change.previousGrossYield)}</span>
+                  <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                  <span className="font-medium text-foreground">{formatCurrency(change.newGrossYield)}</span>
+                  <span
+                    className={`text-xs ${
+                      change.grossYieldDiffPercent >= 0
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    ({change.grossYieldDiffPercent >= 0 ? "+" : ""}
+                    {change.grossYieldDiffPercent.toFixed(2)}%)
+                  </span>
+                </div>
+
+                {/* Valor Líquido (só mostra se mudou) */}
+                {Math.abs(change.netValueDiff) > 0.001 && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground w-20">Líquido</span>
+                    <span className="text-foreground">{formatCurrency(change.previousNetValue)}</span>
+                    <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                    <span className="font-medium text-foreground">{formatCurrency(change.newNetValue)}</span>
+                    <span
+                      className={`text-xs ${
+                        change.netValueDiffPercent >= 0
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}
+                    >
+                      ({change.netValueDiffPercent >= 0 ? "+" : ""}
+                      {change.netValueDiffPercent.toFixed(2)}%)
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Resumo Total */}
+            {yieldChanges.length > 0 && (() => {
+              const totalPrevGross = yieldChanges.reduce((s, c) => s + c.previousGrossYield, 0);
+              const totalNewGross = yieldChanges.reduce((s, c) => s + c.newGrossYield, 0);
+              const totalGrossDiff = totalNewGross - totalPrevGross;
+              const totalGrossDiffPercent = totalPrevGross !== 0 ? (totalGrossDiff / totalPrevGross) * 100 : 0;
+
+              return (
+                <div className="border-t border-border pt-4 space-y-2">
+                  <h4 className="font-semibold text-foreground">Resumo Total</h4>
+                  <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">Valor Anterior</p>
+                      <p className="font-medium text-foreground">{formatCurrency(totalPrevGross)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Novo Valor</p>
+                      <p className="font-medium text-foreground">{formatCurrency(totalNewGross)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Diferença</p>
+                      <p
+                        className={`font-semibold ${
+                          totalGrossDiff >= 0
+                            ? "text-green-600 dark:text-green-400"
+                            : "text-red-600 dark:text-red-400"
+                        }`}
+                      >
+                        {totalGrossDiff >= 0 ? "+" : ""}
+                        {formatCurrency(totalGrossDiff)} ({totalGrossDiffPercent >= 0 ? "+" : ""}
+                        {totalGrossDiffPercent.toFixed(2)}%)
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {yieldChanges.length} investimento{yieldChanges.length > 1 ? "s" : ""} alterado{yieldChanges.length > 1 ? "s" : ""}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={() => setIsYieldSummaryOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={confirmSaveYields}
+              disabled={savingYields}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {savingYields ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Confirmar e Salvar
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

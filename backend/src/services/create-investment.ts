@@ -1,5 +1,6 @@
 import { InvestmentRepository } from '@/repositories/investment-repository'
 import { InvestmentType } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 
 interface CreateInvestmentServiceRequest {
   name: string
@@ -75,6 +76,18 @@ export class CreateInvestmentService {
       dividendYield,
       notes,
       userId
+    })
+
+    // Criar snapshot inicial para o histórico
+    const effectiveAmount = investmentType === 'ETF' && quantity
+      ? amount * quantity
+      : amount
+    await prisma.investmentSnapshot.create({
+      data: {
+        investment_id: investment.id,
+        gross_yield: grossYield ?? effectiveAmount,
+        net_value: netValue ?? null,
+      }
     })
 
     return {
