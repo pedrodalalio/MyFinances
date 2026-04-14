@@ -19,6 +19,9 @@ import {
   RefreshCw,
   Save,
   Loader2,
+  AlertTriangle,
+  RotateCcw,
+  CheckCircle2,
 } from "lucide-react";
 import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
@@ -152,6 +155,23 @@ interface YieldInvestment {
   updated_at: string | null;
 }
 
+interface MaturedInvestment {
+  id: string;
+  name: string;
+  description: string | null;
+  investment_type: string;
+  category: string | null;
+  amount: number;
+  gross_yield: number | null;
+  net_value: number | null;
+  interest_rate: number | null;
+  quantity: number | null;
+  broker: string | null;
+  ticker: string | null;
+  purchase_date: string | null;
+  maturity_date: string | null;
+}
+
 interface InvestmentYieldUpdate {
   gross_yield: string;
   net_value: string;
@@ -276,6 +296,16 @@ const UnifiedInvestmentsPage = () => {
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
   const [isYieldSummaryOpen, setIsYieldSummaryOpen] = useState(false);
   const [yieldChanges, setYieldChanges] = useState<YieldChange[]>([]);
+  const [maturedInvestments, setMaturedInvestments] = useState<MaturedInvestment[]>([]);
+  const [redeemingInvestment, setRedeemingInvestment] = useState<MaturedInvestment | null>(null);
+  const [redeemValue, setRedeemValue] = useState<string>("");
+  const [redeemLoading, setRedeemLoading] = useState(false);
+  const [redeemMode, setRedeemMode] = useState<"redeem" | "reinvest">("redeem");
+  const [periodPreset, setPeriodPreset] = useState<"30d" | "3m" | "6m" | "1y" | "all">("30d");
+  const [historyData, setHistoryData] = useState<Array<{
+    id: string;
+    history: Array<{ date: string; grossYield: number; netValue: number | null }>;
+  }>>([]);
 
   // Tipos disponíveis para filtro
   const availableInvestmentTypes = React.useMemo(() => {
@@ -284,11 +314,12 @@ const UnifiedInvestmentsPage = () => {
     return types.map(type => ({ value: type, label: getInvestmentTypeLabel(type) }));
   }, [portfolio]);
 
-  // Investimentos filtrados
+  // Investimentos filtrados (exclui encerrados: MATURED/SOLD/CANCELLED)
   const filteredInvestments = React.useMemo(() => {
     if (!portfolio) return [];
-    if (portfolioFilter === "all") return portfolio.allInvestments;
-    return portfolio.allInvestments.filter(inv => inv.investment_type === portfolioFilter);
+    const active = portfolio.allInvestments.filter(inv => inv.status === "ACTIVE");
+    if (portfolioFilter === "all") return active;
+    return active.filter(inv => inv.investment_type === portfolioFilter);
   }, [portfolio, portfolioFilter]);
 
   // Resumo calculado com base no filtro
@@ -300,7 +331,10 @@ const UnifiedInvestmentsPage = () => {
     let currentValue = 0;
     let netValue = 0;
 
+    const nowTime = Date.now();
     filteredInvestments.forEach(inv => {
+      if (inv.status !== "ACTIVE") return;
+      if (inv.maturity_date && new Date(inv.maturity_date).getTime() <= nowTime) return;
       const effectiveAmount = getEffectiveAmount(inv);
       totalInvested += effectiveAmount;
       currentValue += inv.gross_yield ?? effectiveAmount;
@@ -319,6 +353,64 @@ const UnifiedInvestmentsPage = () => {
       lastUpdated: portfolio.summary.lastUpdated,
     };
   }, [portfolio, portfolioFilter, filteredInvestments]);
+
+  // Métricas de rendimento no período selecionado
+  const periodMetrics = React.useMemo(() => {
+    if (filteredInvestments.length === 0) return null;
+
+    const now = Date.now();
+    let startTime: number;
+    switch (periodPreset) {
+      case "30d": startTime = now - 30 * 24 * 60 * 60 * 1000; break;
+      case "3m": startTime = now - 90 * 24 * 60 * 60 * 1000; break;
+      case "6m": startTime = now - 180 * 24 * 60 * 60 * 1000; break;
+      case "1y": startTime = now - 365 * 24 * 60 * 60 * 1000; break;
+      case "all": startTime = 0; break;
+    }
+
+    const historyMap = new Map(historyData.map(h => [h.id, h.history]));
+
+    let totalStart = 0;
+    let totalEnd = 0;
+    let countWithData = 0;
+
+    filteredInvestments.forEach(inv => {
+      const history = historyMap.get(inv.id) || [];
+      const effectiveAmount = getEffectiveAmount(inv);
+      const endValue = inv.gross_yield ?? effectiveAmount;
+
+      let startValue: number | null = null;
+      if (periodPreset === "all") {
+        startValue = effectiveAmount;
+      } else {
+        const before = history.filter(h => new Date(h.date).getTime() <= startTime);
+        if (before.length > 0) {
+          startValue = before[before.length - 1].grossYield;
+        } else if (history.length > 0 && new Date(history[0].date).getTime() >= startTime) {
+          startValue = effectiveAmount;
+        }
+      }
+
+      if (startValue !== null) {
+        totalStart += startValue;
+        totalEnd += endValue;
+        countWithData++;
+      }
+    });
+
+    const rendimento = totalEnd - totalStart;
+    const rentabilidade = totalStart > 0 ? (rendimento / totalStart) * 100 : 0;
+
+    return { rendimento, rentabilidade, countWithData, totalStart, totalEnd };
+  }, [filteredInvestments, historyData, periodPreset]);
+
+  const periodLabel: Record<typeof periodPreset, string> = {
+    "30d": "Últimos 30 dias",
+    "3m": "Últimos 3 meses",
+    "6m": "Últimos 6 meses",
+    "1y": "Último ano",
+    "all": "Desde o início",
+  };
 
   // Agrupar investimentos do portfolio por nome + taxa
   const portfolioGroups = React.useMemo(() => {
@@ -401,7 +493,18 @@ const UnifiedInvestmentsPage = () => {
   useEffect(() => {
     document.title = "Investimentos | MyFinances";
     loadPortfolio();
+    loadMatured();
+    loadHistory();
   }, []);
+
+  const loadHistory = async () => {
+    try {
+      const response = await api.get("/investments/history");
+      setHistoryData(response.data.investments || []);
+    } catch (error) {
+      console.error("Erro ao carregar histórico:", error);
+    }
+  };
 
   const loadPortfolio = async () => {
     try {
@@ -410,6 +513,92 @@ const UnifiedInvestmentsPage = () => {
     } catch (error) {
       console.error("Erro ao carregar portfolio:", error);
     }
+  };
+
+  const loadMatured = async () => {
+    try {
+      const response = await api.get("/investments/matured");
+      setMaturedInvestments(response.data.investments || []);
+    } catch (error) {
+      console.error("Erro ao carregar vencidos:", error);
+    }
+  };
+
+  const openRedeemDialog = (inv: MaturedInvestment, mode: "redeem" | "reinvest" = "redeem") => {
+    setRedeemingInvestment(inv);
+    setRedeemMode(mode);
+    const suggested = inv.net_value ?? inv.gross_yield ?? inv.amount;
+    setRedeemValue(suggested.toString());
+  };
+
+  const closeRedeemDialog = () => {
+    setRedeemingInvestment(null);
+    setRedeemValue("");
+    setRedeemMode("redeem");
+  };
+
+  const openCreateFromReinvest = (
+    source: MaturedInvestment,
+    amount: number,
+    purchaseDateISO: string
+  ) => {
+    setEditingInvestment(null);
+    setSelectedInvestmentType(source.investment_type);
+    form.reset({
+      name: source.name,
+      description: source.description || "",
+      amount: amount.toString(),
+      initial_investment: "",
+      net_value: "",
+      gross_yield: "",
+      investment_type: source.investment_type as any,
+      category: source.category || "",
+      date: "",
+      purchase_date: purchaseDateISO,
+      maturity_date: "",
+      interest_rate: source.interest_rate?.toString() || "",
+      quantity: source.quantity?.toString() || "",
+      broker: source.broker || "",
+      ticker: source.ticker || "",
+      dividend_yield: "",
+      notes: "",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const confirmRedeem = async () => {
+    if (!redeemingInvestment) return;
+    const value = parseFloat(redeemValue);
+    if (isNaN(value) || value < 0) return;
+
+    setRedeemLoading(true);
+    try {
+      const body = { final_value: value };
+      await api.post(`/investments/${redeemingInvestment.id}/redeem`, body);
+
+      const isReinvest = redeemMode === "reinvest";
+      const source = redeemingInvestment;
+      const dateForNew = source.maturity_date
+        ? source.maturity_date.split("T")[0]
+        : new Date().toISOString().split("T")[0];
+
+      closeRedeemDialog();
+      await Promise.all([loadPortfolio(), loadMatured(), loadHistory()]);
+      refreshBalanceSummary();
+      window.dispatchEvent(new Event("matured-updated"));
+
+      if (isReinvest) {
+        openCreateFromReinvest(source, value, dateForNew);
+      }
+    } catch (error) {
+      console.error("Erro ao resgatar investimento:", error);
+    } finally {
+      setRedeemLoading(false);
+    }
+  };
+
+  const reinvestFromMatured = (inv: MaturedInvestment) => {
+    openRedeemDialog(inv, "reinvest");
   };
 
   const loadYieldInvestments = useCallback(async () => {
@@ -478,23 +667,30 @@ const UnifiedInvestmentsPage = () => {
     yieldInvestments.forEach((inv) => {
       let newGrossYield: number;
       let newNetValue: number;
+      let prevGross: number;
+      let prevNet: number;
 
       if (inv.investment_type === "ETF" && inv.ticker) {
         const priceStr = etfPrices[inv.ticker];
-        if (!priceStr) return;
+        if (!priceStr || priceStr.trim() === "") return;
         const price = parseFloat(priceStr);
         if (isNaN(price) || !inv.quantity) return;
         newGrossYield = price * inv.quantity;
-        newNetValue = inv.net_value ?? 0;
+        prevGross = inv.gross_yield ?? getEffectiveAmount(inv);
+        prevNet = inv.net_value ?? prevGross;
+        newNetValue = inv.net_value ?? newGrossYield;
       } else {
         const update = yieldUpdates[inv.id];
         if (!update) return;
-        newGrossYield = parseFloat(update.gross_yield) || 0;
-        newNetValue = parseFloat(update.net_value) || 0;
+        const grossEntered = update.gross_yield.trim();
+        const netEntered = update.net_value.trim();
+        if (grossEntered === "" && netEntered === "") return;
+        prevGross = inv.gross_yield ?? getEffectiveAmount(inv);
+        prevNet = inv.net_value ?? prevGross;
+        newGrossYield = grossEntered === "" ? prevGross : parseFloat(grossEntered);
+        newNetValue = netEntered === "" ? prevNet : parseFloat(netEntered);
+        if (isNaN(newGrossYield) || isNaN(newNetValue)) return;
       }
-
-      const prevGross = inv.gross_yield ?? getEffectiveAmount(inv);
-      const prevNet = inv.net_value ?? prevGross;
 
       const grossChanged = Math.abs(newGrossYield - prevGross) > 0.001;
       const netChanged = Math.abs(newNetValue - prevNet) > 0.001;
@@ -560,6 +756,7 @@ const UnifiedInvestmentsPage = () => {
       await Promise.all(updatePromises);
       await loadPortfolio();
       await loadYieldInvestments();
+      await loadHistory();
       refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao salvar rendimentos:", error);
@@ -1209,11 +1406,76 @@ const UnifiedInvestmentsPage = () => {
         </TabsList>
 
         <TabsContent value="portfolio" className="space-y-4">
+          {/* Investimentos vencidos pendentes de resgate */}
+          {maturedInvestments.length > 0 && (
+            <Card className="border-amber-500/60 bg-amber-50/40 dark:bg-amber-950/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <AlertTriangle className="h-5 w-5" />
+                  Investimentos vencidos pendentes
+                  <Badge variant="secondary" className="ml-1">
+                    {maturedInvestments.length}
+                  </Badge>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Informe o valor final para que o dinheiro volte ao seu saldo como uma entrada.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {maturedInvestments.map((inv) => {
+                  const projected = inv.net_value ?? inv.gross_yield ?? inv.amount;
+                  return (
+                    <div
+                      key={inv.id}
+                      className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 rounded-lg border bg-background p-4"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold">{inv.name}</span>
+                          <Badge variant="outline">
+                            {getInvestmentTypeLabel(inv.investment_type)}
+                          </Badge>
+                          {inv.broker && (
+                            <Badge variant="secondary" className="text-xs">
+                              {inv.broker}
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Venceu em{" "}
+                          {inv.maturity_date
+                            ? new Date(inv.maturity_date).toLocaleDateString("pt-BR")
+                            : "—"}
+                          {" · "}Aplicado: {formatCurrency(inv.amount)}
+                          {" · "}Projeção: {formatCurrency(projected)}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 md:justify-end">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => reinvestFromMatured(inv)}
+                        >
+                          <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                          Reinvestir
+                        </Button>
+                        <Button size="sm" onClick={() => openRedeemDialog(inv)}>
+                          <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+                          Resgatar
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Resumo do Portfolio */}
           {portfolio && filteredSummary && (
             <>
-              {/* Filtro por tipo */}
-              <div className="flex items-center gap-2">
+              {/* Filtros: tipo + período */}
+              <div className="flex flex-wrap items-center gap-2">
                 <Select value={portfolioFilter} onValueChange={setPortfolioFilter}>
                   <SelectTrigger className="w-48">
                     <SelectValue placeholder="Filtrar por tipo" />
@@ -1227,7 +1489,80 @@ const UnifiedInvestmentsPage = () => {
                     ))}
                   </SelectContent>
                 </Select>
+
+                <div className="inline-flex rounded-md border bg-background p-0.5">
+                  {([
+                    ["30d", "30d"],
+                    ["3m", "3m"],
+                    ["6m", "6m"],
+                    ["1y", "1a"],
+                    ["all", "Tudo"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setPeriodPreset(value)}
+                      className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                        periodPreset === value
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Rendimento no período */}
+              {periodMetrics && periodMetrics.countWithData > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Rendimento · {periodLabel[periodPreset]}
+                      </CardTitle>
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div
+                        className={`text-2xl font-bold ${
+                          periodMetrics.rendimento >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {periodMetrics.rendimento >= 0 ? "+" : ""}
+                        {formatCurrency(periodMetrics.rendimento)}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {periodMetrics.countWithData} investimento
+                        {periodMetrics.countWithData > 1 ? "s" : ""} com dados no período
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        Rentabilidade · {periodLabel[periodPreset]}
+                      </CardTitle>
+                      <PieChart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                      <div
+                        className={`text-2xl font-bold ${
+                          periodMetrics.rentabilidade >= 0 ? "text-green-600" : "text-red-600"
+                        }`}
+                      >
+                        {periodMetrics.rentabilidade >= 0 ? "+" : ""}
+                        {periodMetrics.rentabilidade.toFixed(2)}%
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Base: {formatCurrency(periodMetrics.totalStart)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
@@ -2040,6 +2375,103 @@ const UnifiedInvestmentsPage = () => {
               )}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Resgate de Investimento Vencido */}
+      <Dialog
+        open={redeemingInvestment !== null}
+        onOpenChange={(open) => !open && closeRedeemDialog()}
+      >
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>
+              {redeemMode === "reinvest" ? "Reinvestir" : "Resgatar investimento"}
+            </DialogTitle>
+            <DialogDescription>
+              {redeemingInvestment?.name} — informe o valor final do
+              vencimento. Ele fecha o histórico do investimento atual e
+              {redeemMode === "reinvest"
+                ? " já abre o cadastro de um novo investimento com esse valor."
+                : " volta como entrada no seu saldo."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {redeemingInvestment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Aplicado</p>
+                  <p className="font-medium">
+                    {formatCurrency(redeemingInvestment.amount)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Projeção</p>
+                  <p className="font-medium">
+                    {formatCurrency(
+                      redeemingInvestment.net_value ??
+                        redeemingInvestment.gross_yield ??
+                        redeemingInvestment.amount,
+                    )}
+                  </p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground">Vencimento</p>
+                  <p className="font-medium">
+                    {redeemingInvestment.maturity_date
+                      ? new Date(
+                          redeemingInvestment.maturity_date,
+                        ).toLocaleDateString("pt-BR")
+                      : "—"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Valor final recebido</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={redeemValue}
+                  onChange={(e) => setRedeemValue(e.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={closeRedeemDialog}>
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={confirmRedeem}
+                  disabled={
+                    redeemLoading ||
+                    redeemValue === "" ||
+                    isNaN(parseFloat(redeemValue)) ||
+                    parseFloat(redeemValue) < 0
+                  }
+                >
+                  {redeemLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      {redeemMode === "reinvest" ? "Processando..." : "Resgatando..."}
+                    </>
+                  ) : (
+                    <>
+                      {redeemMode === "reinvest" ? (
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 mr-2" />
+                      )}
+                      {redeemMode === "reinvest" ? "Continuar para novo investimento" : "Confirmar resgate"}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

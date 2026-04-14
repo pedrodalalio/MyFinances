@@ -48,6 +48,7 @@ export interface InvestmentRepository {
   findByMonthAndUser(userId: string, month: string, year: number): Promise<Investment[]>
   findById(id: string): Promise<Investment | null>
   findAllPortfolioByUser(userId: string): Promise<Investment[]>
+  findMaturedPendingByUser(userId: string, referenceDate: Date): Promise<Investment[]>
   update(data: UpdateInvestmentData): Promise<Investment>
   delete(id: string, userId: string): Promise<void>
 }

@@ -102,6 +102,24 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
     })
   }
 
+  async findMaturedPendingByUser(userId: string, referenceDate: Date): Promise<Investment[]> {
+    const investments = await prisma.investment.findMany({
+      where: {
+        user_id: userId,
+        status: 'ACTIVE',
+        maturity_date: {
+          not: null,
+          lte: referenceDate
+        }
+      },
+      orderBy: {
+        maturity_date: 'asc'
+      }
+    })
+
+    return investments
+  }
+
   async findAllPortfolioByUser(userId: string): Promise<Investment[]> {
     const investments = await prisma.investment.findMany({
       where: {

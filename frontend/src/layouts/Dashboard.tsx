@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import useDashboardItems from "../hooks/useDashboardItems";
 import useAuth from "../hooks/useAuth";
+import useMaturedInvestmentsCount from "../hooks/useMaturedInvestmentsCount";
 import { useTheme } from "../contexts/ThemeContext";
 import BalanceSummary from "../components/BalanceSummary";
 
@@ -102,6 +103,7 @@ const AppSidebar = () => {
   const dashboardItems = useDashboardItems();
   const navigate = useNavigate();
   const location = useLocation();
+  const maturedCount = useMaturedInvestmentsCount();
 
   return (
     <Sidebar>
@@ -113,20 +115,29 @@ const AppSidebar = () => {
           <SidebarGroupLabel>Navegação</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {dashboardItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={location.pathname === item.url}
-                    onClick={() => navigate(item.url)}
-                  >
-                    <button className="flex items-center gap-2">
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </button>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {dashboardItems.map((item) => {
+                const showBadge =
+                  item.url === "/investments" && maturedCount > 0;
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={location.pathname === item.url}
+                      onClick={() => navigate(item.url)}
+                    >
+                      <button className="flex items-center gap-2 w-full">
+                        <item.icon className="h-4 w-4" />
+                        <span className="flex-1 text-left">{item.title}</span>
+                        {showBadge && (
+                          <span className="ml-auto inline-flex items-center justify-center rounded-full bg-amber-500 px-1.5 min-w-[1.25rem] h-5 text-[10px] font-semibold text-white">
+                            {maturedCount}
+                          </span>
+                        )}
+                      </button>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

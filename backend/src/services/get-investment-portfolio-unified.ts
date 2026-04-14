@@ -79,19 +79,27 @@ export class GetInvestmentPortfolioUnifiedService {
     return amount
   }
 
+  private isCountableForSummary(inv: Investment): boolean {
+    if (inv.status !== 'ACTIVE') return false
+    if (inv.maturity_date && inv.maturity_date.getTime() <= Date.now()) return false
+    return true
+  }
+
   private calculateSummary(investments: Investment[]): PortfolioSummary {
-    const totalInvested = investments.reduce((sum, inv) => {
+    const countable = investments.filter(inv => this.isCountableForSummary(inv))
+
+    const totalInvested = countable.reduce((sum, inv) => {
       return sum + this.getEffectiveAmount(inv)
     }, 0)
 
     // Para valor atual, usar gross_yield ou valor investido
-    const currentValue = investments.reduce((sum, inv) => {
+    const currentValue = countable.reduce((sum, inv) => {
       const effectiveAmount = this.getEffectiveAmount(inv)
       const value = inv.gross_yield ? Number(inv.gross_yield) : effectiveAmount
       return sum + value
     }, 0)
 
-    const netValue = investments.reduce((sum, inv) => {
+    const netValue = countable.reduce((sum, inv) => {
       const effectiveAmount = this.getEffectiveAmount(inv)
       const value = inv.net_value ? Number(inv.net_value) : (inv.gross_yield ? Number(inv.gross_yield) : effectiveAmount)
       return sum + value
