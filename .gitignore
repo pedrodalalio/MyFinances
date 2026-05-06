@@ -306,3 +306,5 @@ $RECYCLE.BIN/
 
 # Kubernetes
 *.kubeconfig
+
+.claude
