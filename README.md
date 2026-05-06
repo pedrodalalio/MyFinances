@@ -92,19 +92,6 @@ Algumas escolhas que valem destaque:
 
 ---
 
-## 🎬 Preview
-
-> *Adicione aqui screenshots ou um GIF do dashboard, da página de investimentos e do fluxo de importação.*
-
-```
-docs/
-├── dashboard.png
-├── investments.png
-└── import-flow.gif
-```
-
----
-
 ## 🚀 Rodando localmente
 
 Quer testar no seu ambiente?
@@ -130,16 +117,6 @@ pnpm dev
 ```
 
 **Pré-requisitos:** Node ≥ 20, pnpm ≥ 10 e Docker.
-
----
-
-## 🧭 Roadmap
-
-- [ ] Modo multi-usuário com convites
-- [ ] App mobile (React Native) consumindo a mesma API
-- [ ] Categorização automática com IA na importação de extratos
-- [ ] Metas financeiras e alertas
-- [ ] Exportação de relatórios em PDF/CSV
 
 ---
 
