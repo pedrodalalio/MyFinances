@@ -22,8 +22,10 @@ export const app = fastify();
 app.register(fastifyCors, {
   origin:
     env.NODE_ENV === "production"
-      ? ["https://your-frontend-domain.com"] // Adicionar domínio de produção aqui
-      : ["http://localhost:5173", "http://localhost:3000"], // Vite e outros servidores de dev
+      ? env.FRONTEND_URL
+        ? [env.FRONTEND_URL]
+        : []
+      : ["http://localhost:5173", "http://localhost:3000"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
 });
@@ -40,6 +42,16 @@ app.register(fastifyJwt, {
 });
 
 app.register(fastifyCookie);
+
+app.decorateReply("setRefreshTokenCookie", function (token: string) {
+  return this.setCookie("refreshToken", token, {
+    path: "/",
+    secure: true,
+    sameSite: "none",
+    httpOnly: true,
+  });
+});
+
 app.register(fastifyMultipart, {
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB

@@ -45,12 +45,7 @@ export async function register(request: FastifyRequest, reply: FastifyReply) {
     )
 
     return reply
-      .setCookie("refreshToken", refreshToken, {
-        path: "/",
-        secure: true, // HTTPS
-        sameSite: true,
-        httpOnly: true
-      })
+      .setRefreshTokenCookie(refreshToken)
       .status(201)
       .send({
         user: {
