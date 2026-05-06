@@ -225,8 +225,9 @@ export class GetFinancialOverviewService {
     const expensePercentage =
       referenceIncome > 0 ? (totalExpenses / referenceIncome) * 100 : 0;
 
-    // Taxa de reserva: quanto sobrou na conta após gastos e investimentos
-    const reserveAmount = availableAmount;
+    // Taxa de reserva = saving rate: quanto da receita não foi consumida
+    // (sobra em conta + investimentos do mês)
+    const reserveAmount = totalIncome - totalExpenses;
     const reservePercentage =
       totalIncome > 0 ? (reserveAmount / totalIncome) * 100 : 0;
 

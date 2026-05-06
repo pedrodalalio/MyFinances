@@ -39,9 +39,17 @@ const getEffectiveAmount = (inv: Investment): number => {
   return inv.amount;
 };
 
+interface PeriodEntry {
+  startValue: number;
+  endValue: number;
+  hasData: boolean;
+}
+
 interface InvestmentChartsProps {
   investments: Investment[];
   selectedFilter: string;
+  periodLabel: string;
+  periodData: Map<string, PeriodEntry>;
 }
 
 const formatCurrency = (value: number): string => {
@@ -76,7 +84,9 @@ const COLORS = [
 
 export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   investments,
-  selectedFilter
+  selectedFilter,
+  periodLabel,
+  periodData
 }) => {
   const [viewMode, setViewMode] = useState<"type" | "rate" | "individual">("rate");
 
@@ -138,14 +148,17 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
     percentage: totalValue > 0 ? (Number(item.value) / totalValue) * 100 : 0
   }));
 
-  // Dados para o gráfico de rentabilidade por investimento
+  // Dados para o gráfico de rentabilidade por investimento (no período)
   const profitabilityData = React.useMemo(() => {
     return filteredInvestments.map(investment => {
       const initialValue = getEffectiveAmount(investment);
       const currentValue = Number(investment.gross_yield || initialValue);
       const netValue = Number(investment.net_value || investment.gross_yield || initialValue);
-      const profit = currentValue - initialValue;
-      const profitPercentage = initialValue > 0 ? (profit / initialValue) * 100 : 0;
+      const period = periodData.get(investment.id);
+      const startBase = period?.startValue ?? initialValue;
+      const endBase = period?.endValue ?? currentValue;
+      const periodProfit = period?.hasData ? endBase - startBase : 0;
+      const periodPercentage = period?.hasData && startBase > 0 ? (periodProfit / startBase) * 100 : 0;
 
       return {
         name: investment.name.length > 15 ? investment.name.substring(0, 15) + '...' : investment.name,
@@ -153,14 +166,25 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         investido: initialValue,
         bruto: currentValue,
         liquido: netValue,
-        rentabilidade: profitPercentage,
+        rentabilidade: periodPercentage,
+        rendimentoPeriodo: periodProfit,
+        hasPeriodData: period?.hasData ?? false,
       };
     });
-  }, [filteredInvestments]);
+  }, [filteredInvestments, periodData]);
 
   // Dados agrupados por taxa para gráfico de barras e tabela
   const groupedByRate = React.useMemo(() => {
-    const groups = new Map<string, { label: string; investido: number; bruto: number; liquido: number; count: number }>();
+    const groups = new Map<string, {
+      label: string;
+      investido: number;
+      bruto: number;
+      liquido: number;
+      count: number;
+      periodStart: number;
+      periodEnd: number;
+      periodCount: number;
+    }>();
     filteredInvestments.forEach((inv) => {
       const rate = inv.interest_rate != null ? `${inv.interest_rate}%` : "Sem taxa";
       const label = `${getInvestmentTypeLabel(inv.investment_type)} ${rate}`;
@@ -168,29 +192,51 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
       const amount = getEffectiveAmount(inv);
       const gross = Number(inv.gross_yield || amount);
       const net = Number(inv.net_value || inv.gross_yield || amount);
+      const period = periodData.get(inv.id);
+      const hasPeriod = period?.hasData ?? false;
       if (existing) {
         existing.investido += amount;
         existing.bruto += gross;
         existing.liquido += net;
         existing.count++;
+        if (hasPeriod && period) {
+          existing.periodStart += period.startValue;
+          existing.periodEnd += period.endValue;
+          existing.periodCount++;
+        }
       } else {
-        groups.set(label, { label, investido: amount, bruto: gross, liquido: net, count: 1 });
+        groups.set(label, {
+          label,
+          investido: amount,
+          bruto: gross,
+          liquido: net,
+          count: 1,
+          periodStart: hasPeriod && period ? period.startValue : 0,
+          periodEnd: hasPeriod && period ? period.endValue : 0,
+          periodCount: hasPeriod ? 1 : 0,
+        });
       }
     });
     return Array.from(groups.values()).sort((a, b) => b.investido - a.investido);
-  }, [filteredInvestments]);
+  }, [filteredInvestments, periodData]);
 
   // Dados para barras: agrupado quando "rate", individual quando não
   const barChartData = React.useMemo(() => {
     if (effectiveViewMode === "rate") {
-      return groupedByRate.map((g) => ({
-        name: g.label.length > 20 ? g.label.substring(0, 20) + '...' : g.label,
-        fullName: g.label,
-        investido: g.investido,
-        bruto: g.bruto,
-        liquido: g.liquido,
-        rentabilidade: g.investido > 0 ? ((g.bruto - g.investido) / g.investido) * 100 : 0,
-      }));
+      return groupedByRate.map((g) => {
+        const periodProfit = g.periodCount > 0 ? g.periodEnd - g.periodStart : 0;
+        const periodPct = g.periodCount > 0 && g.periodStart > 0 ? (periodProfit / g.periodStart) * 100 : 0;
+        return {
+          name: g.label.length > 20 ? g.label.substring(0, 20) + '...' : g.label,
+          fullName: g.label,
+          investido: g.investido,
+          bruto: g.bruto,
+          liquido: g.liquido,
+          rentabilidade: periodPct,
+          rendimentoPeriodo: periodProfit,
+          hasPeriodData: g.periodCount > 0,
+        };
+      });
     }
     return profitabilityData;
   }, [effectiveViewMode, groupedByRate, profitabilityData]);
@@ -336,7 +382,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
         {/* Gráfico de Barras - Rentabilidade por Investimento */}
         <Card>
           <CardHeader>
-            <CardTitle>Rentabilidade por Investimento</CardTitle>
+            <CardTitle>Rentabilidade · {periodLabel}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -403,14 +449,15 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                     <th className="text-right p-2">Aplicado</th>
                     <th className="text-right p-2">Bruto</th>
                     <th className="text-right p-2">Líquido</th>
-                    <th className="text-right p-2">Retorno</th>
-                    <th className="text-right p-2">%</th>
+                    <th className="text-right p-2">Retorno · {periodLabel}</th>
+                    <th className="text-right p-2">% · {periodLabel}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {groupedByRate.map((group) => {
-                    const totalReturn = group.bruto - group.investido;
-                    const returnPercentage = group.investido > 0 ? (totalReturn / group.investido) * 100 : 0;
+                    const hasPeriod = group.periodCount > 0;
+                    const periodReturn = hasPeriod ? group.periodEnd - group.periodStart : 0;
+                    const periodPct = hasPeriod && group.periodStart > 0 ? (periodReturn / group.periodStart) * 100 : 0;
                     return (
                       <tr key={group.label} className="border-b hover:bg-muted/50">
                         <td className="p-2 font-medium">{group.label}</td>
@@ -418,11 +465,11 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         <td className="text-right p-2">{formatCurrency(group.investido)}</td>
                         <td className="text-right p-2">{formatCurrency(group.bruto)}</td>
                         <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(group.liquido)}</td>
-                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(totalReturn)}
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
-                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {returnPercentage.toFixed(2)}%
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {hasPeriod ? `${periodPct.toFixed(2)}%` : "—"}
                         </td>
                       </tr>
                     );
@@ -440,8 +487,8 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                     <th className="text-right p-2">Aplicado</th>
                     <th className="text-right p-2">Bruto</th>
                     <th className="text-right p-2">Líquido</th>
-                    <th className="text-right p-2">Retorno</th>
-                    <th className="text-right p-2">%</th>
+                    <th className="text-right p-2">Retorno · {periodLabel}</th>
+                    <th className="text-right p-2">% · {periodLabel}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -449,8 +496,10 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                     const initialValue = getEffectiveAmount(investment);
                     const currentValue = Number(investment.gross_yield || initialValue);
                     const netValue = Number(investment.net_value || investment.gross_yield || initialValue);
-                    const totalReturn = currentValue - initialValue;
-                    const returnPercentage = initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
+                    const period = periodData.get(investment.id);
+                    const hasPeriod = period?.hasData ?? false;
+                    const periodReturn = hasPeriod && period ? period.endValue - period.startValue : 0;
+                    const periodPct = hasPeriod && period && period.startValue > 0 ? (periodReturn / period.startValue) * 100 : 0;
 
                     return (
                       <tr key={investment.id} className="border-b hover:bg-muted/50">
@@ -469,11 +518,11 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         <td className="text-right p-2">{formatCurrency(initialValue)}</td>
                         <td className="text-right p-2">{formatCurrency(currentValue)}</td>
                         <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(netValue)}</td>
-                        <td className={`text-right p-2 ${totalReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {formatCurrency(totalReturn)}
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
-                        <td className={`text-right p-2 ${returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {returnPercentage.toFixed(2)}%
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {hasPeriod ? `${periodPct.toFixed(2)}%` : "—"}
                         </td>
                       </tr>
                     );

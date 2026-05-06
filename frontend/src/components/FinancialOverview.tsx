@@ -388,21 +388,27 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
 
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Reserva disponível:</span>
+                <span className="text-muted-foreground">Total poupado:</span>
                 <span className="font-medium">
                   {formatCurrency(analysis.reserve_amount)}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Receita total:</span>
+                <span className="text-muted-foreground">Em conta:</span>
                 <span className="font-medium">
-                  {formatCurrency(displayTotalIncome)}
+                  {formatCurrency(analysis.available_amount)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Investido:</span>
                 <span className="font-medium text-blue-600">
                   {formatCurrency(financial_data.investment_subtotal)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Receita total:</span>
+                <span className="font-medium">
+                  {formatCurrency(displayTotalIncome)}
                 </span>
               </div>
             </div>
@@ -415,17 +421,17 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   : "bg-red-50 text-red-700"
             }`}>
               {analysis.reserve_percentage >= 30
-                ? "🏆 Excelente! Ótima reserva de emergência"
+                ? "🏆 Excelente! Você poupa mais de 30% da receita"
                 : analysis.reserve_percentage >= 15
-                  ? "✓ Boa reserva. Continue assim!"
+                  ? "✓ Boa taxa de poupança. Continue assim!"
                   : analysis.reserve_percentage > 0
-                    ? "📈 Reserva baixa. Tente reduzir gastos essenciais"
-                    : "🚨 Gastos essenciais excedem a receita"
+                    ? "📈 Taxa de poupança baixa. Considere aumentar a reserva"
+                    : "🚨 Gastos excedem a receita"
               }
             </div>
 
             <div className="text-xs text-muted-foreground pt-1 border-t">
-              Saldo em conta após gastos e investimentos
+              Quanto da receita você não consumiu (sobra + investido)
             </div>
           </CardContent>
         </Card>

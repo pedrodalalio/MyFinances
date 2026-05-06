@@ -360,12 +360,13 @@ const UnifiedInvestmentsPage = () => {
 
     const now = Date.now();
     let startTime: number;
+    let periodLengthMs: number;
     switch (periodPreset) {
-      case "30d": startTime = now - 30 * 24 * 60 * 60 * 1000; break;
-      case "3m": startTime = now - 90 * 24 * 60 * 60 * 1000; break;
-      case "6m": startTime = now - 180 * 24 * 60 * 60 * 1000; break;
-      case "1y": startTime = now - 365 * 24 * 60 * 60 * 1000; break;
-      case "all": startTime = 0; break;
+      case "30d": periodLengthMs = 30 * 24 * 60 * 60 * 1000; startTime = now - periodLengthMs; break;
+      case "3m": periodLengthMs = 90 * 24 * 60 * 60 * 1000; startTime = now - periodLengthMs; break;
+      case "6m": periodLengthMs = 180 * 24 * 60 * 60 * 1000; startTime = now - periodLengthMs; break;
+      case "1y": periodLengthMs = 365 * 24 * 60 * 60 * 1000; startTime = now - periodLengthMs; break;
+      case "all": periodLengthMs = Number.POSITIVE_INFINITY; startTime = 0; break;
     }
 
     const historyMap = new Map(historyData.map(h => [h.id, h.history]));
@@ -373,6 +374,7 @@ const UnifiedInvestmentsPage = () => {
     let totalStart = 0;
     let totalEnd = 0;
     let countWithData = 0;
+    const perInvestment = new Map<string, { startValue: number; endValue: number; hasData: boolean }>();
 
     filteredInvestments.forEach(inv => {
       const history = historyMap.get(inv.id) || [];
@@ -380,14 +382,30 @@ const UnifiedInvestmentsPage = () => {
       const endValue = inv.gross_yield ?? effectiveAmount;
 
       let startValue: number | null = null;
+
       if (periodPreset === "all") {
+        // Desde o início → base é o principal investido
         startValue = effectiveAmount;
       } else {
         const before = history.filter(h => new Date(h.date).getTime() <= startTime);
-        if (before.length > 0) {
-          startValue = before[before.length - 1].grossYield;
-        } else if (history.length > 0 && new Date(history[0].date).getTime() >= startTime) {
-          startValue = effectiveAmount;
+        if (before.length === 0) {
+          // Nenhum snapshot antes do início do período
+          if (history.length > 0) {
+            // Investimento criado dentro do período → ganho desde a criação cabe no período
+            startValue = effectiveAmount;
+          }
+          // Sem snapshots → não dá para calcular delta confiável
+        } else {
+          const latestBefore = before[before.length - 1];
+          const latestBeforeTime = new Date(latestBefore.date).getTime();
+          const ageOfBaseline = startTime - latestBeforeTime;
+          // Considera o snapshot "fresco" só se ele estiver dentro de uma janela
+          // de tamanho do período antes do início do período. Snapshots muito
+          // antigos não representam o valor no início do período → marca como
+          // sem dados para evitar reportar ganho histórico como ganho do período.
+          if (ageOfBaseline <= periodLengthMs) {
+            startValue = latestBefore.grossYield;
+          }
         }
       }
 
@@ -395,13 +413,17 @@ const UnifiedInvestmentsPage = () => {
         totalStart += startValue;
         totalEnd += endValue;
         countWithData++;
+        perInvestment.set(inv.id, { startValue, endValue, hasData: true });
+      } else {
+        perInvestment.set(inv.id, { startValue: effectiveAmount, endValue, hasData: false });
       }
     });
 
     const rendimento = totalEnd - totalStart;
     const rentabilidade = totalStart > 0 ? (rendimento / totalStart) * 100 : 0;
+    const totalCount = filteredInvestments.length;
 
-    return { rendimento, rentabilidade, countWithData, totalStart, totalEnd };
+    return { rendimento, rentabilidade, countWithData, totalCount, totalStart, totalEnd, perInvestment };
   }, [filteredInvestments, historyData, periodPreset]);
 
   const periodLabel: Record<typeof periodPreset, string> = {
@@ -415,6 +437,7 @@ const UnifiedInvestmentsPage = () => {
   // Agrupar investimentos do portfolio por nome + taxa
   const portfolioGroups = React.useMemo(() => {
     if (!portfolio) return [];
+    const perInv = periodMetrics?.perInvestment;
     const groups = new Map<
       string,
       {
@@ -427,6 +450,9 @@ const UnifiedInvestmentsPage = () => {
         totalAmount: number;
         totalGross: number;
         totalNet: number;
+        periodStart: number;
+        periodEnd: number;
+        periodCount: number;
       }
     >();
 
@@ -436,12 +462,19 @@ const UnifiedInvestmentsPage = () => {
       const existing = groups.get(key);
 
       const effectiveAmount = getEffectiveAmount(inv);
+      const period = perInv?.get(inv.id);
+      const hasPeriod = period?.hasData ?? false;
 
       if (existing) {
         existing.investments.push(inv);
         existing.totalAmount += effectiveAmount;
         existing.totalGross += inv.gross_yield ?? effectiveAmount;
         existing.totalNet += inv.net_value ?? inv.gross_yield ?? effectiveAmount;
+        if (hasPeriod && period) {
+          existing.periodStart += period.startValue;
+          existing.periodEnd += period.endValue;
+          existing.periodCount++;
+        }
       } else {
         groups.set(key, {
           key,
@@ -453,12 +486,15 @@ const UnifiedInvestmentsPage = () => {
           totalAmount: effectiveAmount,
           totalGross: inv.gross_yield ?? effectiveAmount,
           totalNet: inv.net_value ?? inv.gross_yield ?? effectiveAmount,
+          periodStart: hasPeriod && period ? period.startValue : 0,
+          periodEnd: hasPeriod && period ? period.endValue : 0,
+          periodCount: hasPeriod ? 1 : 0,
         });
       }
     });
 
     return Array.from(groups.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredInvestments]);
+  }, [filteredInvestments, periodMetrics, portfolio]);
 
   const togglePortfolioGroup = (key: string) => {
     setExpandedPortfolioGroups((prev) => {
@@ -1514,56 +1550,6 @@ const UnifiedInvestmentsPage = () => {
                 </div>
               </div>
 
-              {/* Rendimento no período */}
-              {periodMetrics && periodMetrics.countWithData > 0 && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Rendimento · {periodLabel[periodPreset]}
-                      </CardTitle>
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div
-                        className={`text-2xl font-bold ${
-                          periodMetrics.rendimento >= 0 ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {periodMetrics.rendimento >= 0 ? "+" : ""}
-                        {formatCurrency(periodMetrics.rendimento)}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {periodMetrics.countWithData} investimento
-                        {periodMetrics.countWithData > 1 ? "s" : ""} com dados no período
-                      </p>
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        Rentabilidade · {periodLabel[periodPreset]}
-                      </CardTitle>
-                      <PieChart className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                      <div
-                        className={`text-2xl font-bold ${
-                          periodMetrics.rentabilidade >= 0 ? "text-green-600" : "text-red-600"
-                        }`}
-                      >
-                        {periodMetrics.rentabilidade >= 0 ? "+" : ""}
-                        {periodMetrics.rentabilidade.toFixed(2)}%
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Base: {formatCurrency(periodMetrics.totalStart)}
-                      </p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1610,39 +1596,74 @@ const UnifiedInvestmentsPage = () => {
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
-                      Retorno Bruto
+                      Retorno Bruto · {periodLabel[periodPreset]}
                     </CardTitle>
                     <BarChart3 className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div
-                      className={`text-2xl font-bold ${filteredSummary.totalReturn >= 0 ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {formatCurrency(filteredSummary.totalReturn)}
-                    </div>
+                    {periodMetrics && periodMetrics.countWithData > 0 ? (
+                      <>
+                        <div
+                          className={`text-2xl font-bold ${periodMetrics.rendimento >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {periodMetrics.rendimento >= 0 ? "+" : ""}
+                          {formatCurrency(periodMetrics.rendimento)}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {periodMetrics.countWithData} de {periodMetrics.totalCount} com dados no período
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-muted-foreground">—</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sem snapshots suficientes no período
+                        </p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
 
                 <Card>
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-sm font-medium">
-                      Rentabilidade
+                      Rentabilidade · {periodLabel[periodPreset]}
                     </CardTitle>
                     <PieChart className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div
-                      className={`text-2xl font-bold ${filteredSummary.returnPercentage >= 0 ? "text-green-600" : "text-red-600"}`}
-                    >
-                      {filteredSummary.returnPercentage.toFixed(2)}%
-                    </div>
+                    {periodMetrics && periodMetrics.countWithData > 0 ? (
+                      <>
+                        <div
+                          className={`text-2xl font-bold ${periodMetrics.rentabilidade >= 0 ? "text-green-600" : "text-red-600"}`}
+                        >
+                          {periodMetrics.rentabilidade >= 0 ? "+" : ""}
+                          {periodMetrics.rentabilidade.toFixed(2)}%
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Base: {formatCurrency(periodMetrics.totalStart)}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-bold text-muted-foreground">—</div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Sem snapshots suficientes no período
+                        </p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
               </div>
 
               {/* Gráficos e Análises */}
               {filteredInvestments.length > 0 && (
-                <InvestmentCharts investments={filteredInvestments} selectedFilter={portfolioFilter} />
+                <InvestmentCharts
+                  investments={filteredInvestments}
+                  selectedFilter={portfolioFilter}
+                  periodLabel={periodLabel[periodPreset]}
+                  periodData={periodMetrics?.perInvestment ?? new Map()}
+                />
               )}
 
               {/* Listagem agrupada */}
@@ -1665,8 +1686,11 @@ const UnifiedInvestmentsPage = () => {
                     {portfolioGroups.map((group) => {
                       const isExpanded = expandedPortfolioGroups.has(group.key);
                       const count = group.investments.length;
-                      const returnValue = group.totalGross - group.totalAmount;
-                      const returnPct = group.totalAmount > 0 ? (returnValue / group.totalAmount) * 100 : 0;
+                      const hasPeriodData = group.periodCount > 0;
+                      const periodReturnValue = hasPeriodData ? group.periodEnd - group.periodStart : 0;
+                      const periodReturnPct = hasPeriodData && group.periodStart > 0
+                        ? (periodReturnValue / group.periodStart) * 100
+                        : 0;
 
                       return (
                         <div key={group.key} className="border rounded-lg overflow-hidden">
@@ -1711,10 +1735,15 @@ const UnifiedInvestmentsPage = () => {
                                 <span className="font-semibold text-green-600">{formatCurrency(group.totalNet)}</span>
                               </div>
                               <div>
-                                <span className="text-muted-foreground text-xs block">Retorno</span>
-                                <span className={`font-semibold ${returnPct >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                  {returnPct.toFixed(1)}%
-                                </span>
+                                <span className="text-muted-foreground text-xs block">Retorno · {periodLabel[periodPreset]}</span>
+                                {hasPeriodData ? (
+                                  <span className={`font-semibold ${periodReturnValue >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    {periodReturnValue >= 0 ? "+" : ""}{formatCurrency(periodReturnValue)}
+                                    <span className="text-xs ml-1">({periodReturnPct.toFixed(1)}%)</span>
+                                  </span>
+                                ) : (
+                                  <span className="font-semibold text-muted-foreground">—</span>
+                                )}
                               </div>
                             </div>
                           </div>
