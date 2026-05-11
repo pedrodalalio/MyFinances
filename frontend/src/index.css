@@ -3,11 +3,130 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+  Design tokens — MyFinances.
+  Vibe: fintech grafite premium com cast frio + emerald elétrico.
+  Inspiração: Linear, Stripe, N26, Nubank/Pic Pay (sem o ruído).
+*/
+
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.985 0.002 160);
+  --foreground: oklch(0.18 0.012 160);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.18 0.012 160);
+
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.18 0.012 160);
+
+  --primary: oklch(0.58 0.15 160);
+  --primary-foreground: oklch(0.99 0.01 160);
+
+  --secondary: oklch(0.96 0.005 160);
+  --secondary-foreground: oklch(0.2 0.012 160);
+
+  --muted: oklch(0.96 0.003 160);
+  --muted-foreground: oklch(0.5 0.012 160);
+
+  --accent: oklch(0.95 0.01 160);
+  --accent-foreground: oklch(0.2 0.012 160);
+
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0.01 25);
+
+  --success: oklch(0.62 0.17 152);
+  --success-foreground: oklch(0.99 0.01 152);
+
+  --warning: oklch(0.78 0.17 75);
+  --warning-foreground: oklch(0.18 0.012 75);
+
+  --info: oklch(0.62 0.16 240);
+  --info-foreground: oklch(0.99 0.01 240);
+
+  --border: oklch(0.9 0.005 160);
+  --input: oklch(0.92 0.005 160);
+  --ring: oklch(0.58 0.15 160 / 55%);
+
+  --chart-1: oklch(0.62 0.17 152);
+  --chart-2: oklch(0.7 0.16 220);
+  --chart-3: oklch(0.7 0.18 340);
+  --chart-4: oklch(0.78 0.16 75);
+  --chart-5: oklch(0.6 0.2 300);
+
+  --sidebar: oklch(0.99 0.002 160);
+  --sidebar-foreground: oklch(0.2 0.012 160);
+  --sidebar-primary: oklch(0.58 0.15 160);
+  --sidebar-primary-foreground: oklch(0.99 0.01 160);
+  --sidebar-accent: oklch(0.95 0.008 160);
+  --sidebar-accent-foreground: oklch(0.2 0.012 160);
+  --sidebar-border: oklch(0.9 0.005 160);
+  --sidebar-ring: oklch(0.58 0.15 160 / 55%);
+}
+
+.dark {
+  /* Grafite neutro: chroma quase zero com hue 160 só pra evitar cast estranho. */
+  --background: oklch(0.135 0.005 160);
+  --foreground: oklch(0.96 0.003 160);
+
+  --card: oklch(0.175 0.006 160);
+  --card-foreground: oklch(0.96 0.003 160);
+
+  --popover: oklch(0.18 0.006 160);
+  --popover-foreground: oklch(0.96 0.003 160);
+
+  /* Emerald elétrico — destaque dos botões, links, hover. */
+  --primary: oklch(0.78 0.16 160);
+  --primary-foreground: oklch(0.14 0.04 160);
+
+  --secondary: oklch(0.235 0.006 160);
+  --secondary-foreground: oklch(0.96 0.003 160);
+
+  --muted: oklch(0.21 0.005 160);
+  --muted-foreground: oklch(0.7 0.008 160);
+
+  --accent: oklch(0.255 0.008 160);
+  --accent-foreground: oklch(0.96 0.003 160);
+
+  --destructive: oklch(0.68 0.22 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+
+  --success: oklch(0.74 0.17 152);
+  --success-foreground: oklch(0.14 0.03 152);
+
+  --warning: oklch(0.82 0.18 75);
+  --warning-foreground: oklch(0.16 0.012 75);
+
+  --info: oklch(0.72 0.16 240);
+  --info-foreground: oklch(0.14 0.03 240);
+
+  --border: oklch(0.28 0.006 160 / 60%);
+  --input: oklch(0.3 0.006 160);
+  --ring: oklch(0.78 0.16 160 / 60%);
+
+  --chart-1: oklch(0.78 0.16 160);
+  --chart-2: oklch(0.72 0.16 220);
+  --chart-3: oklch(0.74 0.18 340);
+  --chart-4: oklch(0.82 0.18 75);
+  --chart-5: oklch(0.72 0.19 300);
+
+  --sidebar: oklch(0.155 0.005 160);
+  --sidebar-foreground: oklch(0.96 0.003 160);
+  --sidebar-primary: oklch(0.78 0.16 160);
+  --sidebar-primary-foreground: oklch(0.14 0.04 160);
+  --sidebar-accent: oklch(0.235 0.006 160);
+  --sidebar-accent-foreground: oklch(0.96 0.003 160);
+  --sidebar-border: oklch(0.28 0.006 160 / 60%);
+  --sidebar-ring: oklch(0.78 0.16 160 / 60%);
+}
+
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -23,6 +142,13 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -39,82 +165,63 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-}
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
-}
-
-.dark {
-  --background: oklch(0.0392 0 0);
-  --foreground: oklch(0.9804 0 0);
-  --card: oklch(0.0392 0 0);
-  --card-foreground: oklch(0.9804 0 0);
-  --popover: oklch(0.0392 0 0);
-  --popover-foreground: oklch(0.9804 0 0);
-  --primary: oklch(0.9804 0 0);
-  --primary-foreground: oklch(0.0902 0 0);
-  --secondary: oklch(0.1412 0 0);
-  --secondary-foreground: oklch(0.9804 0 0);
-  --muted: oklch(0.1412 0 0);
-  --muted-foreground: oklch(0.6471 0 0);
-  --accent: oklch(0.1412 0 0);
-  --accent-foreground: oklch(0.9804 0 0);
-  --destructive: oklch(0.6275 0.2 22);
-  --border: oklch(0.2745 0 0);
-  --input: oklch(0.2745 0 0);
-  --ring: oklch(0.6471 0 0);
-  --chart-1: oklch(0.7569 0.196 22);
-  --chart-2: oklch(0.5765 0.196 142);
-  --chart-3: oklch(0.4941 0.196 182);
-  --chart-4: oklch(0.6941 0.196 62);
-  --chart-5: oklch(0.6196 0.196 302);
-  --sidebar: oklch(0.0392 0 0);
-  --sidebar-foreground: oklch(0.9804 0 0);
-  --sidebar-primary: oklch(0.9804 0 0);
-  --sidebar-primary-foreground: oklch(0.0902 0 0);
-  --sidebar-accent: oklch(0.1412 0 0);
-  --sidebar-accent-foreground: oklch(0.9804 0 0);
-  --sidebar-border: oklch(0.2745 0 0);
-  --sidebar-ring: oklch(0.6471 0 0);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", "Inter", ui-sans-serif, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
-    @apply bg-background text-foreground;
+    @apply h-full;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11", "tnum";
+  }
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  /* Esconde spinners de inputs number — formulários financeiros geralmente
+     têm botões próprios e os arrows ficam tortos no design. */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Glow sutil para destacar números importantes em hover */
+  .glow-primary {
+    box-shadow: 0 0 0 1px color-mix(in oklch, var(--primary) 30%, transparent),
+      0 8px 24px -10px color-mix(in oklch, var(--primary) 35%, transparent);
   }
 }

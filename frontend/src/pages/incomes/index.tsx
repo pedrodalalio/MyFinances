@@ -7,6 +7,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -236,21 +237,18 @@ const IncomesPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Entradas</h1>
-          <p className="text-muted-foreground">
-            Gerencie suas entradas extras (freelances, presentes, devoluções, etc.)
-          </p>
-        </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Nova Entrada
-            </Button>
-          </DialogTrigger>
+      <PageHeader
+        eyebrow="Entradas"
+        title="Receitas extras"
+        description="Registre freelances, presentes, devoluções e outras entradas além do salário."
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Nova entrada
+              </Button>
+            </DialogTrigger>
           <DialogContent
             className="sm:max-w-[425px]"
             onInteractOutside={(e) => e.preventDefault()}
@@ -407,46 +405,54 @@ const IncomesPage = () => {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Carrossel de meses */}
-      <div className="border-b">
-        <div className="overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {periodMonths.map((period) => {
-              const monthName = months.find(m => m.value === period.month)?.label || period.month;
-              const isActive = selectedPeriod === period.key;
+      <div className="overflow-x-auto rounded-xl border border-border bg-card/40 p-1">
+        <div className="flex gap-1 min-w-max">
+          {periodMonths.map((period) => {
+            const monthName = months.find(m => m.value === period.month)?.label || period.month;
+            const isActive = selectedPeriod === period.key;
 
-              return (
-                <Button
-                  key={period.key}
-                  variant={isActive ? "default" : "ghost"}
-                  className={`whitespace-nowrap px-6 py-2 rounded-none border-b-2 ${
-                    isActive
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-transparent hover:border-muted-foreground/30"
-                  }`}
-                  onClick={() => setSelectedPeriod(period.key)}
-                >
-                  <span className="font-medium">
-                    {monthName}/{period.year.toString().slice(-2)}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
+            return (
+              <button
+                key={period.key}
+                type="button"
+                onClick={() => setSelectedPeriod(period.key)}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                <span className="font-mono text-xs uppercase tracking-wider">
+                  {monthName.slice(0, 3)}/{period.year.toString().slice(-2)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Total de entradas do mês */}
       {incomes.length > 0 && (
-        <Card>
+        <Card className="border-[color:var(--success)]/20 bg-[color:var(--success)]/[0.03]">
           <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-2">
-              <ArrowDownLeft className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Total de entradas no mês</span>
+            <div className="flex items-center gap-2.5">
+              <span className="grid size-9 place-items-center rounded-lg bg-[color:var(--success)]/15 text-[color:var(--success)]">
+                <ArrowDownLeft className="size-4" />
+              </span>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Entradas do mês
+                </p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total acumulado
+                </p>
+              </div>
             </div>
-            <span className="text-2xl font-bold text-green-500">
+            <span className="font-display text-3xl font-bold tabular text-[color:var(--success)]">
               R$ {formatCurrency(totalIncomes)}
             </span>
           </CardContent>
@@ -478,7 +484,7 @@ const IncomesPage = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
-                      <ArrowDownLeft className="h-5 w-5 text-green-500" />
+                      <ArrowDownLeft className="h-5 w-5 text-[color:var(--success)]" />
                       {income.name}
                     </CardTitle>
                     {income.description && (
@@ -490,7 +496,7 @@ const IncomesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => editIncome(income)}
-                      className="text-blue-500 hover:text-blue-700"
+                      className="text-primary hover:bg-primary/10"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -498,7 +504,7 @@ const IncomesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => deleteIncome(income.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -509,7 +515,7 @@ const IncomesPage = () => {
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                   <div>
                     <p className="text-muted-foreground">Valor</p>
-                    <p className="font-semibold text-green-500">
+                    <p className="font-semibold text-[color:var(--success)]">
                       R$ {formatCurrency(parseFloat(income.amount))}
                     </p>
                   </div>

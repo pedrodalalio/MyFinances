@@ -16,6 +16,7 @@ import {
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -61,10 +62,10 @@ const typeLabels: Record<string, string> = {
 };
 
 const typeColors: Record<string, string> = {
-  EXPENSE: "text-red-500",
-  INCOME: "text-green-500",
-  INVESTMENT: "text-blue-500",
-  TAX: "text-orange-500",
+  EXPENSE: "text-destructive",
+  INCOME: "text-[color:var(--success)]",
+  INVESTMENT: "text-primary",
+  TAX: "text-[color:var(--warning)]",
   TRANSFER: "text-gray-500",
   IGNORE: "text-gray-400",
 };
@@ -306,32 +307,27 @@ const ImportsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Importações</h1>
-          <p className="text-muted-foreground">
-            Importe seu extrato bancário (CSV ou OFX) para categorizar suas
-            transações automaticamente
-          </p>
-        </div>
-
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.ofx,.ofc,.txt"
-            onChange={handleUpload}
-            className="hidden"
-          />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.ofx,.ofc,.txt"
+        onChange={handleUpload}
+        className="hidden"
+      />
+      <PageHeader
+        eyebrow="Sincronização"
+        title="Importações"
+        description="Importe extratos bancários (CSV ou OFX) e categorize transações automaticamente."
+        action={
           <Button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
             <Upload className="mr-2 h-4 w-4" />
-            {uploading ? "Importando..." : "Importar Extrato"}
+            {uploading ? "Importando..." : "Importar extrato"}
           </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Lista de importações */}
       <div className="grid gap-4">
@@ -393,7 +389,7 @@ const ImportsPage = () => {
                         variant="ghost"
                         size="icon"
                         onClick={() => deleteImport(imp.id)}
-                        className="text-red-500 hover:text-red-700"
+                        className="text-destructive hover:text-destructive"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -427,36 +423,36 @@ const ImportsPage = () => {
             <div className="space-y-4">
               {/* Resumo */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg">
+                <div className="p-3 bg-destructive/10 rounded-lg">
                   <p className="text-xs text-muted-foreground">Gastos</p>
-                  <p className="text-lg font-bold text-red-500">
+                  <p className="text-lg font-bold text-destructive">
                     R$ {formatCurrency(summary.totalExpenses)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {summary.expenses.length} transações
                   </p>
                 </div>
-                <div className="p-3 bg-green-50 dark:bg-green-950/30 rounded-lg">
+                <div className="p-3 bg-[color:var(--success)]/10 rounded-lg">
                   <p className="text-xs text-muted-foreground">Entradas</p>
-                  <p className="text-lg font-bold text-green-500">
+                  <p className="text-lg font-bold text-[color:var(--success)]">
                     R$ {formatCurrency(summary.totalIncomes)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {summary.incomes.length} transações
                   </p>
                 </div>
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg">
+                <div className="p-3 bg-primary/10 rounded-lg">
                   <p className="text-xs text-muted-foreground">Investimentos</p>
-                  <p className="text-lg font-bold text-blue-500">
+                  <p className="text-lg font-bold text-primary">
                     R$ {formatCurrency(summary.totalInvestments)}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {summary.investments.length} transações
                   </p>
                 </div>
-                <div className="p-3 bg-orange-50 dark:bg-orange-950/30 rounded-lg">
+                <div className="p-3 bg-[color:var(--warning)]/10 rounded-lg">
                   <p className="text-xs text-muted-foreground">Impostos</p>
-                  <p className="text-lg font-bold text-orange-500">
+                  <p className="text-lg font-bold text-[color:var(--warning)]">
                     R$ {formatCurrency(summary.totalTaxes)}
                   </p>
                   <p className="text-xs text-muted-foreground">
@@ -471,7 +467,7 @@ const ImportsPage = () => {
                 return (
                   <>
                     {duplicates.length > 0 && (
-                      <p className="text-sm text-orange-500 font-medium">
+                      <p className="text-sm text-[color:var(--warning)] font-medium">
                         {duplicates.length} possíveis duplicatas encontradas (marcadas como "Ignorar" — você pode alterar)
                       </p>
                     )}
@@ -518,13 +514,13 @@ const ImportsPage = () => {
                                 </p>
                               )}
                               {t.is_duplicate && (
-                                <p className="text-xs text-orange-500 font-medium">
+                                <p className="text-xs text-[color:var(--warning)] font-medium">
                                   Possível duplicata de: "{t.duplicate_of}"
                                 </p>
                               )}
                               {t.group_key && !t.is_duplicate && t.type !== "IGNORE" &&
                                 groupCounts[`${t.group_key}_${t.type}`] > 1 && (
-                                <p className="text-xs text-blue-500 font-medium">
+                                <p className="text-xs text-primary font-medium">
                                   Será agrupado ({groupCounts[`${t.group_key}_${t.type}`]}x) — Total: R$ {formatCurrency(
                                     selectedImport!.transactions!
                                       .filter(x => x.group_key === t.group_key && x.type === t.type)
@@ -535,7 +531,7 @@ const ImportsPage = () => {
                             </div>
                           </td>
                           <td
-                            className={`p-2 text-right whitespace-nowrap font-medium ${t.is_credit ? "text-green-500" : "text-red-500"}`}
+                            className={`p-2 text-right whitespace-nowrap font-medium ${t.is_credit ? "text-[color:var(--success)]" : "text-destructive"}`}
                           >
                             {t.is_credit ? "+" : "-"} R${" "}
                             {formatCurrency(Number(t.amount))}

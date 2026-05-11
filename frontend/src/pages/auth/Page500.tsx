@@ -1,26 +1,34 @@
-import React from "react";
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Helmet } from "react-helmet-async";
+import { ArrowLeft } from "lucide-react";
 
-import { Button } from "react-bootstrap";
+import { AuthShell } from "@/components/AuthShell";
+import { Button } from "@/components/ui/button";
 
-const Page500 = () => (
-  <React.Fragment>
-    <Helmet title="500 Error" />
-    <div className="text-center">
-      <h1 className="display-1 fw-bold">500</h1>
-      <p className="h2">Erro Interno no Servidor!</p>
-      <p className="lead fw-normal mt-3 mb-4">
-        O servidor encontrou algo inesperado que não permitiu completar a
-        solicitação.
-      </p>
-      <Link to="/">
-        <Button variant="primary" size="lg">
-          Voltar ao site!
-        </Button>
-      </Link>
-    </div>
-  </React.Fragment>
-);
+const Page500 = () => {
+  useEffect(() => {
+    document.title = "500 — Erro do servidor | MyFinances";
+  }, []);
+
+  return (
+    <AuthShell
+      eyebrow="Erro 500"
+      title="Algo deu errado"
+      subtitle="O servidor encontrou um problema inesperado. Tente novamente em alguns minutos."
+    >
+      <div className="flex flex-col items-center gap-4">
+        <p className="font-display text-7xl font-bold tabular text-destructive">
+          500
+        </p>
+        <Link to="/">
+          <Button size="lg" className="gap-2">
+            <ArrowLeft className="size-4" />
+            Voltar ao início
+          </Button>
+        </Link>
+      </div>
+    </AuthShell>
+  );
+};
 
 export default Page500;

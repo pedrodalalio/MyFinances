@@ -76,10 +76,18 @@ const getInvestmentTypeLabel = (type: string): string => {
 };
 
 
+// Paleta derivada dos tokens chart-1..5 do tema (emerald + harmônicos frios/quentes)
 const COLORS = [
-  '#0088FE', '#00C49F', '#FFBB28', '#FF8042',
-  '#8884d8', '#82ca9d', '#ffc658', '#ff7c7c',
-  '#8dd1e1', '#d084d0'
+  "oklch(0.74 0.17 152)", // success / emerald
+  "oklch(0.72 0.16 220)", // sky
+  "oklch(0.74 0.18 340)", // pink
+  "oklch(0.82 0.18 75)",  // amber
+  "oklch(0.72 0.19 300)", // violet
+  "oklch(0.7 0.15 180)",  // teal
+  "oklch(0.68 0.18 30)",  // coral
+  "oklch(0.66 0.15 260)", // indigo
+  "oklch(0.78 0.13 110)", // lime
+  "oklch(0.72 0.14 0)",   // rose
 ];
 
 export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
@@ -464,11 +472,11 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         <td className="text-right p-2">{group.count}</td>
                         <td className="text-right p-2">{formatCurrency(group.investido)}</td>
                         <td className="text-right p-2">{formatCurrency(group.bruto)}</td>
-                        <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(group.liquido)}</td>
-                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(group.liquido)}</td>
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
-                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? `${periodPct.toFixed(2)}%` : "—"}
                         </td>
                       </tr>
@@ -517,11 +525,11 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         </td>
                         <td className="text-right p-2">{formatCurrency(initialValue)}</td>
                         <td className="text-right p-2">{formatCurrency(currentValue)}</td>
-                        <td className="text-right p-2 text-green-600 font-medium">{formatCurrency(netValue)}</td>
-                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(netValue)}</td>
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
-                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodPct >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? `${periodPct.toFixed(2)}%` : "—"}
                         </td>
                       </tr>

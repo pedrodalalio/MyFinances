@@ -6,6 +6,7 @@ import { Plus, DollarSign, Calendar, TrendingUp, Pencil, Trash2 } from "lucide-r
 import { api } from "@/utils/api";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -201,14 +202,11 @@ const SettingsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Configurações</h1>
-          <p className="text-muted-foreground">
-            Gerencie suas configurações e perfis salariais
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow="Conta"
+        title="Configurações"
+        description="Ajuste perfis salariais, preferências e dados da sua conta."
+      />
 
       {/* Salário Atual */}
       <Card>
@@ -225,7 +223,7 @@ const SettingsPage = () => {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-2xl font-bold text-green-600">
+                  <p className="text-2xl font-bold text-[color:var(--success)]">
                     R$ {formatCurrency(currentSalary.amount)}
                   </p>
                   {currentSalary.description && (

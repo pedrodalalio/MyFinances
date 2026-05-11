@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { Wallet } from "lucide-react";
+import { Wallet, TrendingUp } from "lucide-react";
 import { api } from "@/utils/api";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 interface BalanceData {
   accountBalance: number;
@@ -64,9 +65,9 @@ export default function BalanceSummary() {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-1.5 px-3 py-1.5">
-        <Wallet className="h-4 w-4 text-muted-foreground animate-pulse" />
-        <span className="text-sm text-muted-foreground">...</span>
+      <div className="flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3">
+        <Wallet className="size-4 text-muted-foreground animate-pulse" />
+        <span className="text-sm text-muted-foreground">···</span>
       </div>
     );
   }
@@ -81,12 +82,13 @@ export default function BalanceSummary() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-md cursor-default select-none hover:bg-accent transition-colors">
-          <Wallet className="h-4 w-4 text-muted-foreground" />
+        <div className="flex h-9 items-center gap-2 rounded-lg border border-border/60 bg-card/50 px-3 cursor-default select-none transition-colors hover:border-primary/30 hover:bg-primary/5">
+          <Wallet className="size-4 text-primary" />
           <span
-            className={`text-sm font-medium ${
-              isNegative ? "text-red-500 dark:text-red-400" : "text-foreground"
-            }`}
+            className={cn(
+              "text-sm font-semibold tabular",
+              isNegative ? "text-destructive" : "text-foreground",
+            )}
           >
             {formatCurrency(data.accountBalance)}
           </span>
@@ -94,32 +96,41 @@ export default function BalanceSummary() {
       </TooltipTrigger>
       <TooltipContent
         side="bottom"
-        className="bg-popover text-popover-foreground border border-border shadow-md p-3 min-w-[220px]"
+        className="border border-border bg-popover p-0 text-popover-foreground shadow-lg"
+        sideOffset={8}
       >
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Em conta</span>
-            <span
-              className={`font-medium ${
-                isNegative
-                  ? "text-red-500 dark:text-red-400"
-                  : "text-foreground"
-              }`}
-            >
-              {formatCurrency(data.accountBalance)}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-muted-foreground">Investido</span>
-            <span className="font-medium text-foreground">
-              {formatCurrency(data.investedTotal)}
-            </span>
-          </div>
-          <div className="border-t border-border pt-2 flex justify-between gap-4">
-            <span className="font-medium text-foreground">Total</span>
-            <span className="font-semibold text-foreground">
-              {formatCurrency(total)}
-            </span>
+        <div className="min-w-[240px] p-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+            Patrimônio
+          </p>
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="flex justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <Wallet className="size-3.5" /> Em conta
+              </span>
+              <span
+                className={cn(
+                  "font-semibold tabular",
+                  isNegative ? "text-destructive" : "text-foreground",
+                )}
+              >
+                {formatCurrency(data.accountBalance)}
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                <TrendingUp className="size-3.5" /> Investido
+              </span>
+              <span className="font-semibold tabular text-foreground">
+                {formatCurrency(data.investedTotal)}
+              </span>
+            </div>
+            <div className="mt-2 flex justify-between gap-4 border-t border-border pt-2">
+              <span className="font-medium">Total</span>
+              <span className="font-display text-base font-bold tabular text-primary">
+                {formatCurrency(total)}
+              </span>
+            </div>
           </div>
         </div>
       </TooltipContent>

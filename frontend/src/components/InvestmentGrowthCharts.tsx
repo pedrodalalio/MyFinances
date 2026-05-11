@@ -40,16 +40,16 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 const COLORS = [
-  "var(--chart-1, #2563eb)",
-  "var(--chart-2, #16a34a)",
-  "var(--chart-3, #dc2626)",
-  "var(--chart-4, #ca8a04)",
-  "var(--chart-5, #9333ea)",
-  "#0891b2",
-  "#e11d48",
-  "#65a30d",
-  "#c026d3",
-  "#ea580c",
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "oklch(0.7 0.15 180)",  // teal
+  "oklch(0.68 0.18 30)",  // coral
+  "oklch(0.78 0.13 110)", // lime
+  "oklch(0.72 0.14 0)",   // rose
+  "oklch(0.66 0.15 260)", // indigo
 ];
 
 function formatCurrency(value: number): string {

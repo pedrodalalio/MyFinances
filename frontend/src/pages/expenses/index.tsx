@@ -7,6 +7,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -257,21 +258,18 @@ const ExpensesPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Gastos</h1>
-          <p className="text-muted-foreground">
-            Gerencie seus gastos simples (PIX, dinheiro, etc.)
-          </p>
-        </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Gasto
-            </Button>
-          </DialogTrigger>
+      <PageHeader
+        eyebrow="Saídas"
+        title="Gastos"
+        description="Lance gastos do dia a dia (PIX, dinheiro, débito) e acompanhe o fluxo do mês."
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo gasto
+              </Button>
+            </DialogTrigger>
           <DialogContent
             className="sm:max-w-[425px]"
             onInteractOutside={(e) => e.preventDefault()}
@@ -442,46 +440,54 @@ const ExpensesPage = () => {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Carrossel de meses */}
-      <div className="border-b">
-        <div className="overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {periodMonths.map((period) => {
-              const monthName = months.find(m => m.value === period.month)?.label || period.month;
-              const isActive = selectedPeriod === period.key;
+      <div className="overflow-x-auto rounded-xl border border-border bg-card/40 p-1">
+        <div className="flex gap-1 min-w-max">
+          {periodMonths.map((period) => {
+            const monthName = months.find(m => m.value === period.month)?.label || period.month;
+            const isActive = selectedPeriod === period.key;
 
-              return (
-                <Button
-                  key={period.key}
-                  variant={isActive ? "default" : "ghost"}
-                  className={`whitespace-nowrap px-6 py-2 rounded-none border-b-2 ${
-                    isActive
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-transparent hover:border-muted-foreground/30"
-                  }`}
-                  onClick={() => setSelectedPeriod(period.key)}
-                >
-                  <span className="font-medium">
-                    {monthName}/{period.year.toString().slice(-2)}
-                  </span>
-                </Button>
-              );
-            })}
-          </div>
+            return (
+              <button
+                key={period.key}
+                type="button"
+                onClick={() => setSelectedPeriod(period.key)}
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                  isActive
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+              >
+                <span className="font-mono text-xs uppercase tracking-wider">
+                  {monthName.slice(0, 3)}/{period.year.toString().slice(-2)}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Total de gastos do mês */}
       {expenses.length > 0 && (
-        <Card>
+        <Card className="border-destructive/20 bg-destructive/[0.03]">
           <CardContent className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-muted-foreground">Total de gastos no mês</span>
+            <div className="flex items-center gap-2.5">
+              <span className="grid size-9 place-items-center rounded-lg bg-destructive/15 text-destructive">
+                <Wallet className="size-4" />
+              </span>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                  Saídas do mês
+                </p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Total acumulado
+                </p>
+              </div>
             </div>
-            <span className="text-2xl font-bold text-red-500">
+            <span className="font-display text-3xl font-bold tabular text-destructive">
               R$ {formatCurrency(totalExpenses)}
             </span>
           </CardContent>
@@ -525,7 +531,7 @@ const ExpensesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => editExpense(expense)}
-                      className="text-blue-500 hover:text-blue-700"
+                      className="text-primary hover:bg-primary/10"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -533,7 +539,7 @@ const ExpensesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => deleteExpense(expense.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

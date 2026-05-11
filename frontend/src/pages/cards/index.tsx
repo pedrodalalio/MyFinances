@@ -7,6 +7,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -419,40 +420,37 @@ const CardsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Cartões</h1>
-          <p className="text-muted-foreground">
-            Gerencie seus gastos de cartão de crédito
-          </p>
-        </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          setIsDialogOpen(open);
-          if (!open) {
-            setEditingPurchase(null);
-            form.reset();
-          }
-        }}>
-          <Button onClick={() => {
-            setEditingPurchase(null);
-            form.reset({
-              name: "",
-              description: "",
-              total_amount: "",
-              installments: "",
-              start_month: selectedMonth.split("-")[1],
-              start_year: selectedMonth.split("-")[0],
-              end_month: "",
-              end_year: "",
-              category: "",
-              is_recurring: false,
-            });
-            setIsDialogOpen(true);
+      <PageHeader
+        eyebrow="Crédito"
+        title="Cartões"
+        description="Gerencie gastos parcelados e recorrentes do seu cartão de crédito."
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            setIsDialogOpen(open);
+            if (!open) {
+              setEditingPurchase(null);
+              form.reset();
+            }
           }}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Gasto
-          </Button>
+            <Button onClick={() => {
+              setEditingPurchase(null);
+              form.reset({
+                name: "",
+                description: "",
+                total_amount: "",
+                installments: "",
+                start_month: selectedMonth.split("-")[1],
+                start_year: selectedMonth.split("-")[0],
+                end_month: "",
+                end_year: "",
+                category: "",
+                is_recurring: false,
+              });
+              setIsDialogOpen(true);
+            }}>
+              <Plus className="mr-2 h-4 w-4" />
+              Novo gasto
+            </Button>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>
@@ -708,36 +706,35 @@ const CardsPage = () => {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Carrossel de meses */}
       {purchases.length > 0 && (
-        <div className="border-b">
-          <div className="overflow-x-auto">
-            <div className="flex gap-1 min-w-max">
-              {monthlyBills.map((bill) => {
-                const monthKey = `${bill.year}-${bill.month}`;
-                const monthName = months.find(m => m.value === bill.month)?.label || bill.month;
-                const isActive = selectedMonth === monthKey;
+        <div className="overflow-x-auto rounded-xl border border-border bg-card/40 p-1">
+          <div className="flex gap-1 min-w-max">
+            {monthlyBills.map((bill) => {
+              const monthKey = `${bill.year}-${bill.month}`;
+              const monthName = months.find(m => m.value === bill.month)?.label || bill.month;
+              const isActive = selectedMonth === monthKey;
 
-                return (
-                  <Button
-                    key={monthKey}
-                    variant={isActive ? "default" : "ghost"}
-                    className={`whitespace-nowrap px-6 py-2 rounded-none border-b-2 ${
-                      isActive
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "border-transparent hover:border-muted-foreground/30"
-                    }`}
-                    onClick={() => setSelectedMonth(monthKey)}
-                  >
-                    <span className="font-medium">
-                      {monthName}/{bill.year.toString().slice(-2)}
-                    </span>
-                  </Button>
-                );
-              })}
-            </div>
+              return (
+                <button
+                  key={monthKey}
+                  type="button"
+                  onClick={() => setSelectedMonth(monthKey)}
+                  className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    isActive
+                      ? "bg-primary/10 text-primary"
+                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                  }`}
+                >
+                  <span className="font-mono text-xs uppercase tracking-wider">
+                    {monthName.slice(0, 3)}/{bill.year.toString().slice(-2)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -773,27 +770,24 @@ const CardsPage = () => {
         
         <div className="space-y-6">
           {/* Resumo do mês selecionado */}
-          <Card>
+          <Card className="border-primary/20 bg-primary/[0.03]">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <CreditCard className="h-5 w-5" />
-                    Fatura de {selectedMonthName} {selectedMonthData.year}
-                  </CardTitle>
-                  <CardDescription>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-primary">
+                    Fatura · {selectedMonthName} {selectedMonthData.year}
+                  </p>
+                  <CardTitle className="mt-2 flex items-center gap-2 font-display">
+                    <CreditCard className="h-5 w-5 text-primary" />
                     {selectedMonthData.purchases.length === 0
-                      ? "Nenhum gasto neste mês"
-                      : `${selectedMonthData.purchases.length} ${selectedMonthData.purchases.length === 1 ? 'gasto' : 'gastos'} no cartão`
-                    }
-                  </CardDescription>
+                      ? "Sem lançamentos neste mês"
+                      : `${selectedMonthData.purchases.length} ${selectedMonthData.purchases.length === 1 ? "gasto" : "gastos"}`}
+                  </CardTitle>
+                  <CardDescription>Total acumulado da fatura</CardDescription>
                 </div>
                 <div className="text-right">
-                  <p className="text-3xl font-bold text-primary">
+                  <p className="font-display text-3xl font-bold tabular text-primary md:text-4xl">
                     R$ {formatCurrency(selectedMonthData.total)}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Total da fatura
                   </p>
                 </div>
               </div>
@@ -833,7 +827,7 @@ const CardsPage = () => {
                             size="icon"
                             onClick={() => endRecurring(purchase)}
                             title="Encerrar recorrência neste mês"
-                            className="text-orange-500 hover:text-orange-700"
+                            className="text-[color:var(--warning)] hover:bg-[color:var(--warning)]/10"
                           >
                             <Square className="h-4 w-4" />
                           </Button>
@@ -842,7 +836,7 @@ const CardsPage = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => editPurchase(purchase)}
-                          className="text-blue-500 hover:text-blue-700"
+                          className="text-primary hover:bg-primary/10"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
@@ -850,7 +844,7 @@ const CardsPage = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => deletePurchase(purchase.id)}
-                          className="text-red-500 hover:text-red-700"
+                          className="text-destructive hover:bg-destructive/10"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

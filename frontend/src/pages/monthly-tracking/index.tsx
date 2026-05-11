@@ -14,6 +14,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -381,35 +382,39 @@ const MonthlyTrackingPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Fechamento Mensal</h1>
-          <p className="text-muted-foreground">
-            Visualize seus gastos, entradas e investimentos por mês
-          </p>
-        </div>
-
-        {/* Seletor de Mês/Ano */}
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigateMonth("prev")}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="text-lg font-semibold min-w-[150px] md:min-w-[200px] text-center">
-            {currentMonthLabel} {currentDate.year}
+      <PageHeader
+        eyebrow="Fechamento"
+        title="Fechamento mensal"
+        description="Consolide entradas, saídas e investimentos do mês selecionado."
+        action={
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateMonth("prev")}
+              aria-label="Mês anterior"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="min-w-[160px] text-center md:min-w-[200px]">
+              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
+                Período
+              </p>
+              <p className="font-display text-sm font-semibold tracking-tight">
+                {currentMonthLabel} {currentDate.year}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigateMonth("next")}
+              aria-label="Próximo mês"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigateMonth("next")}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* Overview Financeiro */}
       <FinancialOverview
@@ -427,7 +432,7 @@ const MonthlyTrackingPage = () => {
               <CardTitle>Gastos do Cartão de Crédito</CardTitle>
             </div>
             {expensesData && (
-              <div className="text-lg font-semibold text-red-600">
+              <div className="text-lg font-semibold text-destructive">
                 R$ {formatCurrency(expensesData.total)}
               </div>
             )}
@@ -492,7 +497,7 @@ const MonthlyTrackingPage = () => {
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
                           {expense.type === "recurring" ? (
-                            <Repeat className="h-4 w-4 text-blue-600" />
+                            <Repeat className="h-4 w-4 text-primary" />
                           ) : (
                             <CreditCard className="h-4 w-4 text-gray-600" />
                           )}
@@ -520,7 +525,7 @@ const MonthlyTrackingPage = () => {
                             variant="ghost"
                             size="icon"
                             onClick={() => openEditInstallment(expense)}
-                            className="h-8 w-8 text-blue-500 hover:text-blue-700"
+                            className="h-8 w-8 text-primary hover:text-primary"
                             title="Editar valor desta parcela"
                           >
                             <Edit className="h-4 w-4" />
@@ -545,7 +550,7 @@ const MonthlyTrackingPage = () => {
               <CardTitle>Gastos à Vista</CardTitle>
             </div>
             {cashExpensesData && (
-              <div className="text-lg font-semibold text-red-600">
+              <div className="text-lg font-semibold text-destructive">
                 R$ {formatCurrency(cashExpensesData.total)}
               </div>
             )}
@@ -616,7 +621,7 @@ const MonthlyTrackingPage = () => {
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <Receipt className="h-4 w-4 text-green-600" />
+                          <Receipt className="h-4 w-4 text-[color:var(--success)]" />
                           <div>
                             <span className="font-medium">{expense.name}</span>
                             {expense.description && (
@@ -658,7 +663,7 @@ const MonthlyTrackingPage = () => {
               <CardTitle>Entradas Extras</CardTitle>
             </div>
             {incomesData && (
-              <div className="text-lg font-semibold text-green-600">
+              <div className="text-lg font-semibold text-[color:var(--success)]">
                 R$ {formatCurrency(incomesData.total)}
               </div>
             )}
@@ -703,7 +708,7 @@ const MonthlyTrackingPage = () => {
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <ArrowDownLeft className="h-4 w-4 text-green-600" />
+                          <ArrowDownLeft className="h-4 w-4 text-[color:var(--success)]" />
                           <div>
                             <span className="font-medium">{income.name}</span>
                             {income.description && (
@@ -727,7 +732,7 @@ const MonthlyTrackingPage = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="font-semibold text-green-600">
+                        <div className="font-semibold text-[color:var(--success)]">
                           R$ {formatCurrency(Number(income.amount))}
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -752,7 +757,7 @@ const MonthlyTrackingPage = () => {
               <CardTitle>Investimentos</CardTitle>
             </div>
             {investmentsData && (
-              <div className="text-lg font-semibold text-green-600">
+              <div className="text-lg font-semibold text-[color:var(--success)]">
                 {formatCurrency(investmentsData.total)}
               </div>
             )}
@@ -823,7 +828,7 @@ const MonthlyTrackingPage = () => {
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-2">
-                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <TrendingUp className="h-4 w-4 text-[color:var(--success)]" />
                           <div>
                             <span className="font-medium">
                               {investment.name}
@@ -848,7 +853,7 @@ const MonthlyTrackingPage = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="text-right">
-                          <div className="font-semibold text-green-600">
+                          <div className="font-semibold text-[color:var(--success)]">
                             {formatCurrency(Number(investment.amount))}
                           </div>
                           {investment.expected_return && (

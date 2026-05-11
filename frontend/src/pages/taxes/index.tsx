@@ -7,6 +7,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
@@ -326,30 +327,27 @@ const TaxesPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Impostos e Taxas</h1>
-          <p className="text-muted-foreground">
-            Gerencie impostos, taxas e obrigações fiscais
-          </p>
-        </div>
-
-        <Dialog
-          open={isDialogOpen}
-          onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setEditingTax(null);
-              form.reset();
-            }
-          }}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Imposto
-            </Button>
-          </DialogTrigger>
+      <PageHeader
+        eyebrow="Fiscal"
+        title="Impostos e taxas"
+        description="Acompanhe IRPF, DARFs, IPTU e demais obrigações fiscais."
+        action={
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingTax(null);
+                form.reset();
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo imposto
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -419,7 +417,7 @@ const TaxesPage = () => {
                         </SelectContent>
                       </Select>
                       {form.watch("frequency") === "MONTHLY" && (
-                        <div className="text-sm text-blue-600 mt-1">
+                        <div className="text-sm text-primary mt-1">
                           💡 Frequência mensal criará automaticamente este imposto para todos os meses até dezembro do ano selecionado.
                         </div>
                       )}
@@ -616,7 +614,8 @@ const TaxesPage = () => {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Resumo */}
       <div className="grid gap-4 md:grid-cols-1">
@@ -722,7 +721,7 @@ const TaxesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => editTax(tax)}
-                      className="text-blue-500 hover:text-blue-700"
+                      className="text-primary hover:text-primary"
                     >
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -730,7 +729,7 @@ const TaxesPage = () => {
                       variant="ghost"
                       size="icon"
                       onClick={() => deleteTax(tax.id)}
-                      className="text-red-500 hover:text-red-700"
+                      className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -27,6 +27,7 @@ import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -969,21 +970,18 @@ const UnifiedInvestmentsPage = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Investimentos</h1>
-          <p className="text-muted-foreground">
-            Gerencie seus investimentos e acompanhe seu portfolio
-          </p>
-        </div>
-
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => openCreateDialog()}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Investimento
-            </Button>
-          </DialogTrigger>
+      <PageHeader
+        eyebrow="Portfólio"
+        title="Investimentos"
+        description="Acompanhe o desempenho do seu portfólio e gerencie rendimentos."
+        action={
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => openCreateDialog()}>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo investimento
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
@@ -1426,7 +1424,8 @@ const UnifiedInvestmentsPage = () => {
             </Form>
           </DialogContent>
         </Dialog>
-      </div>
+        }
+      />
 
       {/* Tabs para separar visualizações */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1587,7 +1586,7 @@ const UnifiedInvestmentsPage = () => {
                     <Coins className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-2xl font-bold text-[color:var(--success)]">
                       {formatCurrency(filteredSummary.netValue)}
                     </div>
                   </CardContent>
@@ -1604,7 +1603,7 @@ const UnifiedInvestmentsPage = () => {
                     {periodMetrics && periodMetrics.countWithData > 0 ? (
                       <>
                         <div
-                          className={`text-2xl font-bold ${periodMetrics.rendimento >= 0 ? "text-green-600" : "text-red-600"}`}
+                          className={`text-2xl font-bold ${periodMetrics.rendimento >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}
                         >
                           {periodMetrics.rendimento >= 0 ? "+" : ""}
                           {formatCurrency(periodMetrics.rendimento)}
@@ -1635,7 +1634,7 @@ const UnifiedInvestmentsPage = () => {
                     {periodMetrics && periodMetrics.countWithData > 0 ? (
                       <>
                         <div
-                          className={`text-2xl font-bold ${periodMetrics.rentabilidade >= 0 ? "text-green-600" : "text-red-600"}`}
+                          className={`text-2xl font-bold ${periodMetrics.rentabilidade >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}
                         >
                           {periodMetrics.rentabilidade >= 0 ? "+" : ""}
                           {periodMetrics.rentabilidade.toFixed(2)}%
@@ -1732,12 +1731,12 @@ const UnifiedInvestmentsPage = () => {
                               </div>
                               <div>
                                 <span className="text-muted-foreground text-xs block">Líquido</span>
-                                <span className="font-semibold text-green-600">{formatCurrency(group.totalNet)}</span>
+                                <span className="font-semibold text-[color:var(--success)]">{formatCurrency(group.totalNet)}</span>
                               </div>
                               <div>
                                 <span className="text-muted-foreground text-xs block">Retorno · {periodLabel[periodPreset]}</span>
                                 {hasPeriodData ? (
-                                  <span className={`font-semibold ${periodReturnValue >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                  <span className={`font-semibold ${periodReturnValue >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}>
                                     {periodReturnValue >= 0 ? "+" : ""}{formatCurrency(periodReturnValue)}
                                     <span className="text-xs ml-1">({periodReturnPct.toFixed(1)}%)</span>
                                   </span>
@@ -1788,7 +1787,7 @@ const UnifiedInvestmentsPage = () => {
                                       {investment.net_value != null && (
                                         <div>
                                           <span className="text-muted-foreground text-xs">Líquido</span>
-                                          <div className="font-medium text-green-600">{formatCurrency(investment.net_value)}</div>
+                                          <div className="font-medium text-[color:var(--success)]">{formatCurrency(investment.net_value)}</div>
                                         </div>
                                       )}
                                       {investment.purchase_date && (
@@ -1818,7 +1817,7 @@ const UnifiedInvestmentsPage = () => {
                                           </Button>
                                         </div>
                                       ) : (
-                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingId(investment.id); }} className="text-red-500 hover:text-red-700">
+                                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingId(investment.id); }} className="text-destructive hover:text-destructive">
                                           <Trash2 className="h-4 w-4" />
                                         </Button>
                                       )}
@@ -1965,13 +1964,13 @@ const UnifiedInvestmentsPage = () => {
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Rendimento (total):</span>
-                                    <span className={`font-medium ${rendimento >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    <span className={`font-medium ${rendimento >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}>
                                       {formatCurrency(rendimento)} ({((rendimento / totalInvestido) * 100).toFixed(2)}%)
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Rendimento desde última atualização:</span>
-                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}>
                                       {formatCurrency(rendimentoDesdeUltima)}
                                     </span>
                                   </div>
@@ -2102,18 +2101,18 @@ const UnifiedInvestmentsPage = () => {
                                   {totalLiquidoAtual > 0 && (
                                     <div className="flex justify-between">
                                       <span>Líquido atual (grupo):</span>
-                                      <span className="font-medium text-green-600">{formatCurrency(totalLiquidoAtual)}</span>
+                                      <span className="font-medium text-[color:var(--success)]">{formatCurrency(totalLiquidoAtual)}</span>
                                     </div>
                                   )}
                                   <div className="flex justify-between">
                                     <span>Rendimento (total):</span>
-                                    <span className={`font-medium ${rendimentoTotal >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    <span className={`font-medium ${rendimentoTotal >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}>
                                       {formatCurrency(rendimentoTotal)} ({totalInvestido > 0 ? ((rendimentoTotal / totalInvestido) * 100).toFixed(2) : "0.00"}%)
                                     </span>
                                   </div>
                                   <div className="flex justify-between">
                                     <span>Rendimento desde última atualização:</span>
-                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"}`}>
+                                    <span className={`font-medium ${rendimentoDesdeUltima >= 0 ? "text-[color:var(--success)]" : "text-destructive"}`}>
                                       {formatCurrency(rendimentoDesdeUltima)}
                                     </span>
                                   </div>
@@ -2208,7 +2207,7 @@ const UnifiedInvestmentsPage = () => {
                                 Rendimento bruto (total):{" "}
                                 <span
                                   className={`font-medium ${
-                                    rendimento >= 0 ? "text-green-600" : "text-red-600"
+                                    rendimento >= 0 ? "text-[color:var(--success)]" : "text-destructive"
                                   }`}
                                 >
                                   {formatCurrency(rendimento)} ({((rendimento / effectiveAmount) * 100).toFixed(2)}%)
@@ -2218,7 +2217,7 @@ const UnifiedInvestmentsPage = () => {
                                 Rendimento desde última atualização:{" "}
                                 <span
                                   className={`font-medium ${
-                                    rendimentoDesdeUltima >= 0 ? "text-green-600" : "text-red-600"
+                                    rendimentoDesdeUltima >= 0 ? "text-[color:var(--success)]" : "text-destructive"
                                   }`}
                                 >
                                   {formatCurrency(rendimentoDesdeUltima)}
@@ -2235,7 +2234,7 @@ const UnifiedInvestmentsPage = () => {
                     <Button
                       onClick={handleSaveYields}
                       disabled={savingYields}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className=""
                     >
                       {savingYields ? (
                         <>
@@ -2283,15 +2282,15 @@ const UnifiedInvestmentsPage = () => {
                   </div>
                   <div className="flex items-center gap-1">
                     {change.grossYieldDiff >= 0 ? (
-                      <TrendingUp className="h-4 w-4 text-green-500" />
+                      <TrendingUp className="h-4 w-4 text-[color:var(--success)]" />
                     ) : (
-                      <TrendingDown className="h-4 w-4 text-red-500" />
+                      <TrendingDown className="h-4 w-4 text-destructive" />
                     )}
                     <span
                       className={`text-sm font-semibold ${
                         change.grossYieldDiff >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
+                          ? "text-[color:var(--success)]"
+                          : "text-destructive"
                       }`}
                     >
                       {change.grossYieldDiff >= 0 ? "+" : ""}
@@ -2309,8 +2308,8 @@ const UnifiedInvestmentsPage = () => {
                   <span
                     className={`text-xs ${
                       change.grossYieldDiffPercent >= 0
-                        ? "text-green-600 dark:text-green-400"
-                        : "text-red-600 dark:text-red-400"
+                        ? "text-[color:var(--success)]"
+                        : "text-destructive"
                     }`}
                   >
                     ({change.grossYieldDiffPercent >= 0 ? "+" : ""}
@@ -2328,8 +2327,8 @@ const UnifiedInvestmentsPage = () => {
                     <span
                       className={`text-xs ${
                         change.netValueDiffPercent >= 0
-                          ? "text-green-600 dark:text-green-400"
-                          : "text-red-600 dark:text-red-400"
+                          ? "text-[color:var(--success)]"
+                          : "text-destructive"
                       }`}
                     >
                       ({change.netValueDiffPercent >= 0 ? "+" : ""}
@@ -2364,8 +2363,8 @@ const UnifiedInvestmentsPage = () => {
                       <p
                         className={`font-semibold ${
                           totalGrossDiff >= 0
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
+                            ? "text-[color:var(--success)]"
+                            : "text-destructive"
                         }`}
                       >
                         {totalGrossDiff >= 0 ? "+" : ""}
@@ -2389,7 +2388,7 @@ const UnifiedInvestmentsPage = () => {
             <Button
               onClick={confirmSaveYields}
               disabled={savingYields}
-              className="bg-blue-600 hover:bg-blue-700"
+              className=""
             >
               {savingYields ? (
                 <>

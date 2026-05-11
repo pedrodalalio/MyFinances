@@ -202,11 +202,11 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         {[...Array(4)].map((_, i) => (
           <Card key={i} className="animate-pulse">
             <CardHeader className="space-y-0 pb-2">
-              <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+              <div className="h-4 bg-muted rounded w-3/4"></div>
             </CardHeader>
             <CardContent>
-              <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-full"></div>
+              <div className="h-8 bg-muted rounded w-1/2 mb-2"></div>
+              <div className="h-3 bg-muted rounded w-full"></div>
             </CardContent>
           </Card>
         ))}
@@ -218,7 +218,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-red-500">
+          <div className="text-center text-destructive">
             {error || "Dados não encontrados"}
           </div>
         </CardContent>
@@ -267,7 +267,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               {financial_data.previous_balance !== 0 && (
                 <div>
                   Saldo anterior:{" "}
-                  <span className={financial_data.previous_balance < 0 ? "text-red-500" : ""}>
+                  <span className={financial_data.previous_balance < 0 ? "text-destructive" : ""}>
                     {formatCurrency(financial_data.previous_balance)}
                   </span>
                 </div>
@@ -287,17 +287,17 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   <div className="flex items-center gap-1">
                     <button
                       onClick={handleEditMoney}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      className="p-1 hover:bg-accent rounded transition-colors"
                       title="Editar valor"
                     >
                       <Edit3 className="h-3 w-3 text-gray-500" />
                     </button>
                     <button
                       onClick={onRemoveMoney}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      className="p-1 hover:bg-accent rounded transition-colors"
                       title="Remover valor"
                     >
-                      <Trash2 className="h-3 w-3 text-red-500" />
+                      <Trash2 className="h-3 w-3 text-destructive" />
                     </button>
                   </div>
                 </div>
@@ -347,17 +347,17 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               Saldo em Conta
             </CardTitle>
             {analysis.monthly_surplus_deficit >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-600" />
+              <TrendingUp className="h-4 w-4 text-[color:var(--success)]" />
             ) : (
-              <TrendingDown className="h-4 w-4 text-red-600" />
+              <TrendingDown className="h-4 w-4 text-destructive" />
             )}
           </CardHeader>
           <CardContent>
             <div
               className={`text-2xl font-bold ${
                 analysis.monthly_surplus_deficit >= 0
-                  ? "text-green-600"
-                  : "text-red-600"
+                  ? "text-[color:var(--success)]"
+                  : "text-destructive"
               }`}
             >
               {formatCurrency(analysis.available_amount)}
@@ -378,10 +378,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
           <CardContent className="space-y-3">
             <div className={`text-2xl font-bold ${
               analysis.reserve_percentage >= 20
-                ? "text-green-600"
+                ? "text-[color:var(--success)]"
                 : analysis.reserve_percentage >= 10
-                  ? "text-yellow-600"
-                  : "text-red-600"
+                  ? "text-[color:var(--warning)]"
+                  : "text-destructive"
             }`}>
               {formatPercentage(analysis.reserve_percentage)}
             </div>
@@ -401,7 +401,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Investido:</span>
-                <span className="font-medium text-blue-600">
+                <span className="font-medium text-primary">
                   {formatCurrency(financial_data.investment_subtotal)}
                 </span>
               </div>
@@ -415,10 +415,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
 
             <div className={`text-xs p-2 rounded-md ${
               analysis.reserve_percentage >= 30
-                ? "bg-green-50 text-green-700"
+                ? "bg-[color:var(--success)]/10 text-[color:var(--success)]"
                 : analysis.reserve_percentage >= 15
-                  ? "bg-yellow-50 text-yellow-700"
-                  : "bg-red-50 text-red-700"
+                  ? "bg-[color:var(--warning)]/10 text-[color:var(--warning)]"
+                  : "bg-destructive/10 text-destructive"
             }`}>
               {analysis.reserve_percentage >= 30
                 ? "🏆 Excelente! Você poupa mais de 30% da receita"
@@ -449,17 +449,17 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 {
                   name: "Despesas Gerais",
                   value: financial_data.expense_subtotal,
-                  color: "#8B5CF6"
+                  color: "oklch(0.72 0.16 220)" // sky
                 },
                 {
                   name: "Cartão de Crédito",
                   value: financial_data.credit_card_subtotal,
-                  color: "#EF4444"
+                  color: "oklch(0.65 0.22 27)" // coral
                 },
                 {
                   name: "Impostos",
                   value: financial_data.tax_subtotal,
-                  color: "#F59E0B"
+                  color: "oklch(0.82 0.18 75)" // amber
                 }
               ]}
             />
@@ -476,21 +476,21 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   <>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                        <div className="size-3 rounded-full" style={{ background: "oklch(0.72 0.16 220)" }} />
                         <span>Despesas Gerais</span>
                       </div>
                       <span className="font-medium">{expensePercent}%</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                        <div className="size-3 rounded-full" style={{ background: "oklch(0.65 0.22 27)" }} />
                         <span>Cartão de Crédito</span>
                       </div>
                       <span className="font-medium">{creditPercent}%</span>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                        <div className="size-3 rounded-full" style={{ background: "oklch(0.82 0.18 75)" }} />
                         <span>Impostos</span>
                       </div>
                       <span className="font-medium">{taxPercent}%</span>
@@ -509,9 +509,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
           <CardContent className="space-y-4">
             <div className="flex items-start space-x-3">
               {analysis.is_over_budget ? (
-                <AlertTriangle className="h-5 w-5 text-orange-500 mt-0.5" />
+                <AlertTriangle className="h-5 w-5 text-[color:var(--warning)] mt-0.5" />
               ) : (
-                <CheckCircle className="h-5 w-5 text-green-500 mt-0.5" />
+                <CheckCircle className="h-5 w-5 text-[color:var(--success)] mt-0.5" />
               )}
               <div>
                 <p className="font-medium">
@@ -539,7 +539,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 {financial_data.income_subtotal > 0 && (
                   <div className="flex justify-between">
                     <span>Entradas extras:</span>
-                    <span className="font-medium text-green-600">
+                    <span className="font-medium text-[color:var(--success)]">
                       {formatCurrency(financial_data.income_subtotal)}
                     </span>
                   </div>
@@ -553,7 +553,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                 {financial_data.investment_subtotal > 0 && (
                   <div className="flex justify-between">
                     <span>Investimentos:</span>
-                    <span className="font-medium text-blue-600">
+                    <span className="font-medium text-primary">
                       {formatCurrency(financial_data.investment_subtotal)}
                     </span>
                   </div>
@@ -563,8 +563,8 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   <span
                     className={`font-bold ${
                       analysis.monthly_surplus_deficit >= 0
-                        ? "text-green-600"
-                        : "text-red-600"
+                        ? "text-[color:var(--success)]"
+                        : "text-destructive"
                     }`}
                   >
                     {formatCurrency(analysis.monthly_surplus_deficit)}
@@ -584,7 +584,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   <Button
                     variant="outline"
                     onClick={() => navigate("/investments?tab=yields")}
-                    className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                    className="w-full border-primary/30 text-primary hover:bg-primary/10"
                   >
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Atualizar Rendimentos
@@ -601,10 +601,10 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                   Confirme o fechamento do mês para transferir o saldo para o próximo período
                 </p>
                 {financial_data.is_confirmed ? (
-                  <div className="text-center p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <CheckCircle className="h-5 w-5 text-green-600 mx-auto mb-1" />
-                    <p className="text-sm font-medium text-green-800">Mês já confirmado</p>
-                    <p className="text-xs text-green-600">
+                  <div className="text-center p-3 bg-[color:var(--success)]/10 border border-[color:var(--success)]/30 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-[color:var(--success)] mx-auto mb-1" />
+                    <p className="text-sm font-medium text-[color:var(--success)]">Mês já confirmado</p>
+                    <p className="text-xs text-[color:var(--success)]">
                       Saldo transferido para o próximo mês
                     </p>
                   </div>
@@ -613,8 +613,8 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
                     onClick={handleConfirmMonth}
                     className={`w-full ${
                       analysis.monthly_surplus_deficit >= 0
-                        ? "bg-green-600 hover:bg-green-700"
-                        : "bg-orange-600 hover:bg-orange-700"
+                        ? "bg-[color:var(--success)] hover:bg-[color:var(--success)]/90 text-[color:var(--success-foreground)]"
+                        : "bg-[color:var(--warning)] hover:bg-[color:var(--warning)]/90 text-[color:var(--warning-foreground)]"
                     }`}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
