@@ -8,12 +8,8 @@ import {
   DollarSign,
   Wallet,
   CreditCard,
-  PiggyBank,
-  AlertTriangle,
-  Heart,
 } from "lucide-react";
 import { apiService } from "@/services/api";
-import { cn } from "@/lib/utils";
 
 import useAuth from "@hooks/useAuth";
 
@@ -27,7 +23,6 @@ interface DashboardSummary {
   creditCardExpenses: number;
   totalCreditCardInstallments: number;
   salary: number;
-  healthScore: number;
 }
 
 const formatCurrency = (value: number): string =>
@@ -62,7 +57,6 @@ const Statistics = () => {
         creditCardExpenses: Number(data.creditCardExpenses) || 0,
         totalInvestments: Number(data.totalInvestments) || 0,
         salary: Number(data.salary) || 0,
-        healthScore: Number(data.healthScore) || 0,
         totalCreditCardInstallments:
           Number(data.totalCreditCardInstallments) || 0,
       });
@@ -95,100 +89,33 @@ const Statistics = () => {
 
   if (!summary) return null;
 
-  const healthColor =
-    summary.healthScore >= 70
-      ? "success"
-      : summary.healthScore >= 40
-        ? "warning"
-        : "destructive";
-
-  const healthLabel =
-    summary.healthScore >= 70
-      ? "Excelente"
-      : summary.healthScore >= 40
-        ? "Atenção"
-        : "Crítico";
-
   return (
     <div className="space-y-6">
-      {/* Welcome / health banner */}
+      {/* Welcome banner */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_90%_-10%,oklch(0.78_0.16_160/0.18),transparent_55%)]"
         />
-        <div className="relative flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-4">
-            <Avatar className="size-12 ring-2 ring-primary/20">
-              <AvatarImage src={user?.avatar} />
-              <AvatarFallback className="bg-primary/15 font-display font-semibold text-primary">
-                {user?.name
-                  ?.split(" ")
-                  .map((n) => n[0])
-                  .join("")
-                  .slice(0, 2)
-                  .toUpperCase() || "U"}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <h2 className="font-display text-xl font-bold tracking-tight">
-                Bem-vindo de volta
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Resumo das suas finanças pessoais — atualizado agora.
-              </p>
-            </div>
-          </div>
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-xl border px-4 py-2.5",
-              healthColor === "success" &&
-                "border-[color:var(--success)]/30 bg-[color:var(--success)]/5",
-              healthColor === "warning" &&
-                "border-[color:var(--warning)]/30 bg-[color:var(--warning)]/5",
-              healthColor === "destructive" &&
-                "border-destructive/30 bg-destructive/5",
-            )}
-          >
-            <span
-              className={cn(
-                "grid size-9 place-items-center rounded-lg",
-                healthColor === "success" &&
-                  "bg-[color:var(--success)]/15 text-[color:var(--success)]",
-                healthColor === "warning" &&
-                  "bg-[color:var(--warning)]/15 text-[color:var(--warning)]",
-                healthColor === "destructive" && "bg-destructive/15 text-destructive",
-              )}
-            >
-              {summary.healthScore >= 70 ? (
-                <PiggyBank className="size-5" />
-              ) : summary.healthScore >= 40 ? (
-                <AlertTriangle className="size-5" />
-              ) : (
-                <Heart className="size-5" />
-              )}
-            </span>
-            <div className="min-w-0">
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-                Saúde financeira
-              </p>
-              <p className="font-display text-lg font-bold tabular">
-                {summary.healthScore.toFixed(0)}
-                <span className="ml-1 text-sm font-medium text-muted-foreground">
-                  / 100
-                </span>
-                <span
-                  className={cn(
-                    "ml-2 text-xs font-semibold uppercase tracking-wider",
-                    healthColor === "success" && "text-[color:var(--success)]",
-                    healthColor === "warning" && "text-[color:var(--warning)]",
-                    healthColor === "destructive" && "text-destructive",
-                  )}
-                >
-                  {healthLabel}
-                </span>
-              </p>
-            </div>
+        <div className="relative flex items-center gap-4">
+          <Avatar className="size-12 ring-2 ring-primary/20">
+            <AvatarImage src={user?.avatar} />
+            <AvatarFallback className="bg-primary/15 font-display font-semibold text-primary">
+              {user?.name
+                ?.split(" ")
+                .map((n) => n[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase() || "U"}
+            </AvatarFallback>
+          </Avatar>
+          <div>
+            <h2 className="font-display text-xl font-bold tracking-tight">
+              Bem-vindo de volta
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Resumo das suas finanças pessoais — atualizado agora.
+            </p>
           </div>
         </div>
       </div>
@@ -246,50 +173,6 @@ const Statistics = () => {
           }
         />
       </div>
-
-      {/* Quick Summary Card */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-baseline justify-between">
-            <h3 className="font-display text-lg font-semibold tracking-tight">
-              Resumo do mês
-            </h3>
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground">
-              Fluxo
-            </span>
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs text-muted-foreground">Salário líquido</p>
-              <p className="mt-1 font-display text-xl font-bold tabular text-[color:var(--success)]">
-                R$ {formatCurrency(summary.salary)}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs text-muted-foreground">Total de gastos</p>
-              <p className="mt-1 font-display text-xl font-bold tabular text-destructive">
-                R${" "}
-                {formatCurrency(
-                  summary.monthlyExpenses + summary.creditCardExpenses,
-                )}
-              </p>
-            </div>
-            <div className="rounded-lg border border-border bg-background p-4">
-              <p className="text-xs text-muted-foreground">Sobrou</p>
-              <p
-                className={cn(
-                  "mt-1 font-display text-xl font-bold tabular",
-                  summary.currentBalance >= 0
-                    ? "text-[color:var(--success)]"
-                    : "text-destructive",
-                )}
-              >
-                R$ {formatCurrency(summary.currentBalance)}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };

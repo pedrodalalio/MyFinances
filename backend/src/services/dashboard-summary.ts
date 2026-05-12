@@ -20,7 +20,6 @@ interface DashboardSummaryResponse {
   creditCardExpenses: number;
   totalCreditCardInstallments: number;
   salary: number;
-  healthScore: number;
 }
 
 export class DashboardSummaryService {
@@ -45,7 +44,7 @@ export class DashboardSummaryService {
     });
 
     const currentBalance = overview.financial_data.final_balance;
-    const currentMonthlyExpenses = overview.financial_data.expense_subtotal;
+    const currentMonthlyExpenses = overview.financial_data.total_expenses;
     const totalCreditCardExpenses = overview.financial_data.credit_card_subtotal;
     const salary = overview.financial_data.main_income;
 
@@ -63,7 +62,7 @@ export class DashboardSummaryService {
         year: previousYear,
       });
       previousBalance = prevOverview.financial_data.final_balance;
-      previousMonthlyExpenses = prevOverview.financial_data.expense_subtotal;
+      previousMonthlyExpenses = prevOverview.financial_data.total_expenses;
     } catch {
       // Previous month may not exist
     }
@@ -111,15 +110,6 @@ export class DashboardSummaryService {
     // Calculate investment change (simplified - would need historical data for accurate calculation)
     const investmentChange = 0;
 
-    // Calculate health score (0-100) based on total income
-    const totalIncome = overview.financial_data.total_income;
-    const totalExpenses = overview.financial_data.total_expenses;
-    const savingsRate =
-      totalIncome === 0
-        ? 0
-        : ((totalIncome - totalExpenses) / totalIncome) * 100;
-    const healthScore = Math.max(0, Math.min(100, Number(savingsRate) || 0));
-
     return {
       currentBalance,
       currentBalanceChange,
@@ -130,7 +120,6 @@ export class DashboardSummaryService {
       creditCardExpenses: totalCreditCardExpenses,
       totalCreditCardInstallments: totalInstallments,
       salary,
-      healthScore,
     };
   }
 }

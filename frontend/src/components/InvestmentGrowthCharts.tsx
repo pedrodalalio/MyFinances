@@ -10,6 +10,7 @@ import {
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api } from "@/utils/api";
 import { TrendingUp } from "lucide-react";
 
@@ -39,17 +40,24 @@ const TYPE_LABELS: Record<string, string> = {
   OTHER: "Outros",
 };
 
+const TABS: { value: string; label: string; type?: string }[] = [
+  { value: "CDB", label: "CDB", type: "CDB" },
+  { value: "ETF", label: "ETF", type: "ETF" },
+  { value: "TREASURY", label: "Tesouro Direto", type: "TREASURY" },
+  { value: "TOTAL", label: "Total" },
+];
+
 const COLORS = [
   "var(--chart-1)",
   "var(--chart-2)",
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
-  "oklch(0.7 0.15 180)",  // teal
-  "oklch(0.68 0.18 30)",  // coral
-  "oklch(0.78 0.13 110)", // lime
-  "oklch(0.72 0.14 0)",   // rose
-  "oklch(0.66 0.15 260)", // indigo
+  "oklch(0.7 0.15 180)",
+  "oklch(0.68 0.18 30)",
+  "oklch(0.78 0.13 110)",
+  "oklch(0.72 0.14 0)",
+  "oklch(0.66 0.15 260)",
 ];
 
 function formatCurrency(value: number): string {
@@ -60,7 +68,7 @@ function formatCurrency(value: number): string {
 }
 
 function formatDate(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-");
+  const [, m, d] = dateStr.split("-");
   return `${d}/${m}`;
 }
 
@@ -88,6 +96,43 @@ function ChartTooltip({ active, payload, label }: CustomTooltipProps) {
       ))}
     </div>
   );
+}
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <p className="text-sm text-muted-foreground text-center py-12">{message}</p>
+  );
+}
+
+// Soma os snapshots de um grupo de investimentos (mesmo tipo ou mesmo nome) na data dada.
+function sumGroupAtDate(invs: InvestmentHistory[], date: string): number {
+  return invs.reduce((acc, inv) => {
+    const snap = [...inv.history].reverse().find((h) => h.date <= date);
+    return acc + (snap ? snap.grossYield : 0);
+  }, 0);
+}
+
+// Constrói dados para o gráfico de um tipo, unificando investimentos com o mesmo nome em uma linha.
+function buildByNameData(invs: InvestmentHistory[]) {
+  const byName: Record<string, InvestmentHistory[]> = {};
+  invs.forEach((inv) => {
+    if (!byName[inv.name]) byName[inv.name] = [];
+    byName[inv.name].push(inv);
+  });
+
+  const dates = new Set<string>();
+  invs.forEach((inv) => inv.history.forEach((h) => dates.add(h.date)));
+  const sorted = Array.from(dates).sort();
+
+  const data = sorted.map((date) => {
+    const point: Record<string, string | number> = { date: formatDate(date) };
+    Object.entries(byName).forEach(([name, group]) => {
+      point[name] = sumGroupAtDate(group, date);
+    });
+    return point;
+  });
+
+  return { names: Object.keys(byName), data };
 }
 
 export default function InvestmentGrowthCharts() {
@@ -118,143 +163,109 @@ export default function InvestmentGrowthCharts() {
     );
   }
 
-  if (investments.length === 0) {
-    return null;
-  }
+  if (investments.length === 0) return null;
 
-  // Group investments by type
   const byType: Record<string, InvestmentHistory[]> = {};
   investments.forEach((inv) => {
     if (!byType[inv.investmentType]) byType[inv.investmentType] = [];
     byType[inv.investmentType].push(inv);
   });
 
-  // Build general chart data: merge all dates and sum values
   const allDates = new Set<string>();
   investments.forEach((inv) =>
     inv.history.forEach((h) => allDates.add(h.date))
   );
   const sortedDates = Array.from(allDates).sort();
 
-  const generalData = sortedDates.map((date) => {
+  const totalData = sortedDates.map((date) => {
     const point: Record<string, string | number> = { date: formatDate(date) };
     let total = 0;
-
-    // Per type totals
     Object.entries(byType).forEach(([type, invs]) => {
-      let typeTotal = 0;
-      invs.forEach((inv) => {
-        const snap = [...inv.history]
-          .reverse()
-          .find((h) => h.date <= date);
-        if (snap) typeTotal += snap.grossYield;
-      });
+      const typeTotal = sumGroupAtDate(invs, date);
       point[type] = typeTotal;
       total += typeTotal;
     });
-
     point["Total"] = total;
     return point;
   });
 
-  // Build per-type chart data
-  const typeCharts = Object.entries(byType).map(([type, invs]) => {
-    const typeDates = new Set<string>();
-    invs.forEach((inv) => inv.history.forEach((h) => typeDates.add(h.date)));
-    const dates = Array.from(typeDates).sort();
-
-    const data = dates.map((date) => {
-      const point: Record<string, string | number> = {
-        date: formatDate(date),
-      };
-      invs.forEach((inv) => {
-        const snap = [...inv.history]
-          .reverse()
-          .find((h) => h.date <= date);
-        if (snap) point[inv.name] = snap.grossYield;
-      });
-      return point;
-    });
-
-    return { type, label: TYPE_LABELS[type] || type, investments: invs, data };
-  });
-
-  const typeKeys = Object.keys(byType);
+  const presentTypes = Object.keys(byType);
 
   return (
-    <div className="space-y-4">
-      {/* General Chart */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-4 w-4" />
-            Evolução Geral dos Investimentos
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {generalData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={generalData}>
-                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 12 }}
-                  className="text-muted-foreground"
-                />
-                <YAxis
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
-                  className="text-muted-foreground"
-                  width={70}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Legend />
-                {typeKeys.map((type, i) => (
-                  <Line
-                    key={type}
-                    type="monotone"
-                    dataKey={type}
-                    name={TYPE_LABELS[type] || type}
-                    stroke={COLORS[i % COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    activeDot={{ r: 5 }}
-                  />
-                ))}
-                <Line
-                  type="monotone"
-                  dataKey="Total"
-                  name="Total"
-                  stroke="var(--foreground)"
-                  strokeWidth={2.5}
-                  strokeDasharray="5 5"
-                  dot={{ r: 3 }}
-                  activeDot={{ r: 5 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Atualize os rendimentos para ver a evolução
-            </p>
-          )}
-        </CardContent>
-      </Card>
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <TrendingUp className="h-4 w-4" />
+          Evolução dos Investimentos
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="TOTAL" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            {TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-      {/* Per Type Charts */}
-      {typeCharts.map(({ type, label, investments: invs, data }, typeIdx) => (
-        <Card key={type}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Evolução - {label}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {data.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <LineChart data={data}>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    className="opacity-30"
+          {TABS.filter((t) => t.type).map((tab) => {
+            const invs = byType[tab.type!] || [];
+            const { names, data } = buildByNameData(invs);
+            return (
+              <TabsContent key={tab.value} value={tab.value} className="mt-4">
+                {invs.length === 0 ? (
+                  <EmptyState
+                    message={`Nenhum investimento em ${tab.label} cadastrado`}
                   />
+                ) : data.length === 0 ? (
+                  <EmptyState message="Atualize os rendimentos para ver a evolução" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={data}>
+                      <CartesianGrid
+                        strokeDasharray="3 3"
+                        className="opacity-30"
+                      />
+                      <XAxis
+                        dataKey="date"
+                        tick={{ fontSize: 12 }}
+                        className="text-muted-foreground"
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
+                        className="text-muted-foreground"
+                        width={70}
+                      />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Legend />
+                      {names.map((name, i) => (
+                        <Line
+                          key={name}
+                          type="monotone"
+                          dataKey={name}
+                          name={name}
+                          stroke={COLORS[i % COLORS.length]}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </TabsContent>
+            );
+          })}
+
+          <TabsContent value="TOTAL" className="mt-4">
+            {totalData.length === 0 ? (
+              <EmptyState message="Atualize os rendimentos para ver a evolução" />
+            ) : (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={totalData}>
+                  <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                   <XAxis
                     dataKey="date"
                     tick={{ fontSize: 12 }}
@@ -262,34 +273,40 @@ export default function InvestmentGrowthCharts() {
                   />
                   <YAxis
                     tick={{ fontSize: 12 }}
-                    tickFormatter={(v) => formatCurrency(v)}
+                    tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`}
                     className="text-muted-foreground"
-                    width={100}
+                    width={70}
                   />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend />
-                  {invs.map((inv, i) => (
+                  {presentTypes.map((type, i) => (
                     <Line
-                      key={inv.id}
+                      key={type}
                       type="monotone"
-                      dataKey={inv.name}
-                      name={inv.name}
-                      stroke={COLORS[(typeIdx * 3 + i) % COLORS.length]}
+                      dataKey={type}
+                      name={TYPE_LABELS[type] || type}
+                      stroke={COLORS[i % COLORS.length]}
                       strokeWidth={2}
                       dot={{ r: 3 }}
                       activeDot={{ r: 5 }}
                     />
                   ))}
+                  <Line
+                    type="monotone"
+                    dataKey="Total"
+                    name="Total"
+                    stroke="var(--foreground)"
+                    strokeWidth={2.5}
+                    strokeDasharray="5 5"
+                    dot={{ r: 3 }}
+                    activeDot={{ r: 5 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                Atualize os rendimentos mais de uma vez para ver a evolução
-              </p>
             )}
-          </CardContent>
-        </Card>
-      ))}
-    </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
