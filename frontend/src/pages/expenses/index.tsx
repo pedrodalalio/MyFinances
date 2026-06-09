@@ -41,6 +41,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 const months = [
   { value: "01", label: "Janeiro" },
@@ -86,6 +87,7 @@ const expenseSchema = z.object({
   payment_method: z.string().min(1, "Método de pagamento é obrigatório"),
   category: z.string().optional(),
   date: z.string().min(1, "Data é obrigatória"),
+  is_recurring: z.boolean().default(false),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
@@ -101,6 +103,8 @@ interface Expense {
   year: number;
   date: string;
   created_at: string;
+  is_recurring?: boolean;
+  recurring_id?: string;
 }
 
 const ExpensesPage = () => {
@@ -145,8 +149,11 @@ const ExpensesPage = () => {
       payment_method: "PIX",
       category: "",
       date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
+      is_recurring: false,
     },
   });
+
+  const isRecurring = form.watch("is_recurring");
 
   const loadExpenses = async () => {
     try {
@@ -169,19 +176,33 @@ const ExpensesPage = () => {
   const createExpense = async (values: ExpenseFormValues) => {
     setLoading(true);
     try {
-      const [yearStr, monthStr] = values.date.split("-");
-      const requestBody = {
-        name: values.name,
-        description: values.description,
-        amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        payment_method: values.payment_method,
-        category: values.category,
-        month: monthStr,
-        year: parseInt(yearStr),
-        date: values.date,
-      };
+      const [yearStr, monthStr, dayStr] = values.date.split("-");
+      const amount = Math.round(parseFloat(values.amount) * 100) / 100;
 
-      await api.post("/expenses", requestBody);
+      if (values.is_recurring) {
+        await api.post("/recurring-expenses", {
+          name: values.name,
+          description: values.description,
+          amount,
+          payment_method: values.payment_method,
+          category: values.category,
+          day_of_month: parseInt(dayStr),
+          start_month: monthStr,
+          start_year: parseInt(yearStr),
+        });
+      } else {
+        await api.post("/expenses", {
+          name: values.name,
+          description: values.description,
+          amount,
+          payment_method: values.payment_method,
+          category: values.category,
+          month: monthStr,
+          year: parseInt(yearStr),
+          date: values.date,
+        });
+      }
+
       setIsDialogOpen(false);
       form.reset();
       loadExpenses();
@@ -202,6 +223,7 @@ const ExpensesPage = () => {
       payment_method: expense.payment_method,
       category: expense.category || "",
       date: expense.date.split("T")[0],
+      is_recurring: expense.is_recurring || false,
     });
     setIsDialogOpen(true);
   };
@@ -211,19 +233,34 @@ const ExpensesPage = () => {
 
     setLoading(true);
     try {
-      const [yearStr, monthStr] = values.date.split("-");
-      const requestBody = {
-        name: values.name,
-        description: values.description,
-        amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        payment_method: values.payment_method,
-        category: values.category,
-        month: monthStr,
-        year: parseInt(yearStr),
-        date: values.date,
-      };
+      const [yearStr, monthStr, dayStr] = values.date.split("-");
+      const amount = Math.round(parseFloat(values.amount) * 100) / 100;
 
-      await api.put(`/expenses/${editingExpense.id}`, requestBody);
+      if (editingExpense.is_recurring && editingExpense.recurring_id) {
+        // Edição de gasto fixo: vale do mês selecionado em diante (versionamento).
+        await api.put(`/recurring-expenses/${editingExpense.recurring_id}`, {
+          effective_month: selectedMonth.toString().padStart(2, "0"),
+          effective_year: selectedYear,
+          name: values.name,
+          description: values.description,
+          amount,
+          payment_method: values.payment_method,
+          category: values.category,
+          day_of_month: parseInt(dayStr),
+        });
+      } else {
+        await api.put(`/expenses/${editingExpense.id}`, {
+          name: values.name,
+          description: values.description,
+          amount,
+          payment_method: values.payment_method,
+          category: values.category,
+          month: monthStr,
+          year: parseInt(yearStr),
+          date: values.date,
+        });
+      }
+
       setIsDialogOpen(false);
       setEditingExpense(null);
       form.reset();
@@ -236,9 +273,17 @@ const ExpensesPage = () => {
     }
   };
 
-  const deleteExpense = async (id: string) => {
+  const deleteExpense = async (expense: Expense) => {
     try {
-      await api.delete(`/expenses/${id}`);
+      if (expense.is_recurring && expense.recurring_id) {
+        // Exclusão de gasto fixo: encerra a partir do mês selecionado.
+        const month = selectedMonth.toString().padStart(2, "0");
+        await api.delete(
+          `/recurring-expenses/${expense.recurring_id}?month=${month}&year=${selectedYear}`,
+        );
+      } else {
+        await api.delete(`/expenses/${expense.id}`);
+      }
       loadExpenses();
       refreshBalanceSummary();
     } catch (error) {
@@ -392,6 +437,38 @@ const ExpensesPage = () => {
 
                 <FormField
                   control={form.control}
+                  name="is_recurring"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                      <div className="space-y-0.5">
+                        <FormLabel className="text-base">
+                          Fixo mensal (recorrente)
+                        </FormLabel>
+                        <div className="text-sm text-muted-foreground">
+                          Repete todo mês automaticamente (luz, internet, água, aluguel...).
+                        </div>
+                      </div>
+                      <FormControl>
+                        <Switch
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                          disabled={!!editingExpense}
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+
+                {isRecurring && (
+                  <p className="-mt-1 text-xs text-muted-foreground">
+                    {editingExpense
+                      ? `A alteração vale a partir de ${months.find((m) => m.value === selectedMonth.toString().padStart(2, "0"))?.label}/${selectedYear}, preservando os meses anteriores. A data define o dia do mês da cobrança.`
+                      : "A data escolhida define o mês inicial e o dia da cobrança."}
+                  </p>
+                )}
+
+                <FormField
+                  control={form.control}
                   name="category"
                   render={({ field }) => (
                     <FormItem>
@@ -421,6 +498,7 @@ const ExpensesPage = () => {
                         payment_method: "PIX",
                         category: "",
                         date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
+                        is_recurring: false,
                       });
                     }}
                   >
@@ -521,6 +599,11 @@ const ExpensesPage = () => {
                     <CardTitle className="flex items-center gap-2">
                       <Wallet className="h-5 w-5" />
                       {expense.name}
+                      {expense.is_recurring && (
+                        <Badge className="border-primary/30 bg-primary/10 text-primary">
+                          Fixo
+                        </Badge>
+                      )}
                     </CardTitle>
                     {expense.description && (
                       <CardDescription>{expense.description}</CardDescription>
@@ -538,7 +621,7 @@ const ExpensesPage = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteExpense(expense.id)}
+                      onClick={() => deleteExpense(expense)}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />

@@ -1,5 +1,10 @@
 import { Expense, PaymentMethod } from '@prisma/client'
 
+export type ExpenseWithRecurring = Expense & {
+  is_recurring?: boolean
+  recurring_id?: string
+}
+
 export interface CreateExpenseData {
   name: string
   description?: string
@@ -27,7 +32,7 @@ export interface UpdateExpenseData {
 
 export interface ExpenseRepository {
   create(data: CreateExpenseData): Promise<Expense>
-  findByMonthAndUser(userId: string, month: string, year: number): Promise<Expense[]>
+  findByMonthAndUser(userId: string, month: string, year: number): Promise<ExpenseWithRecurring[]>
   findById(id: string): Promise<Expense | null>
   update(data: UpdateExpenseData): Promise<Expense>
   delete(id: string, userId: string): Promise<void>
