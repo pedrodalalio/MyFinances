@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -89,17 +89,56 @@ const formatDate = (dateString: string): string => {
   return new Date(dateString).toLocaleDateString("pt-BR", { timeZone: "UTC" });
 };
 
-const expenseSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-  description: z.string().optional(),
-  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Valor deve ser um número positivo",
-  }),
-  payment_method: z.string().min(1, "Método de pagamento é obrigatório"),
-  category: z.string().optional(),
-  date: z.string().min(1, "Data é obrigatória"),
-  is_recurring: z.boolean().default(false),
+const blankFormValues = () => ({
+  name: "",
+  description: "",
+  amount: "",
+  payment_method: "PIX",
+  category: "",
+  date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000)
+    .toISOString()
+    .split("T")[0],
+  is_recurring: false,
+  end_month: "",
+  end_year: "",
 });
+
+const expenseSchema = z
+  .object({
+    name: z.string().min(1, "Nome é obrigatório"),
+    description: z.string().optional(),
+    amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+      message: "Valor deve ser um número positivo",
+    }),
+    payment_method: z.string().min(1, "Método de pagamento é obrigatório"),
+    category: z.string().optional(),
+    date: z.string().min(1, "Data é obrigatória"),
+    is_recurring: z.boolean(),
+    // Último mês/ano em que o gasto fixo se repete (vazios = sem prazo)
+    end_month: z.string().optional(),
+    end_year: z.string().optional(),
+  })
+  .refine(
+    (values) => {
+      if (!values.is_recurring) return true;
+      return !!values.end_month === !!values.end_year;
+    },
+    {
+      message: "Selecione mês e ano do término",
+      path: ["end_month"],
+    },
+  )
+  .refine(
+    (values) => {
+      if (!values.is_recurring || !values.end_month || !values.end_year)
+        return true;
+      return `${values.end_year}-${values.end_month}` >= values.date.slice(0, 7);
+    },
+    {
+      message: "O término deve ser igual ou posterior ao início",
+      path: ["end_month"],
+    },
+  );
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
@@ -116,6 +155,8 @@ interface Expense {
   created_at: string;
   is_recurring?: boolean;
   recurring_id?: string;
+  recurring_end_month?: string | null;
+  recurring_end_year?: number | null;
 }
 
 const ExpensesPage = () => {
@@ -154,18 +195,26 @@ const ExpensesPage = () => {
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: {
-      name: "",
-      description: "",
-      amount: "",
-      payment_method: "PIX",
-      category: "",
-      date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
-      is_recurring: false,
-    },
+    defaultValues: blankFormValues(),
   });
 
+  // Fecha o modal limpando o modo edição e o formulário, em qualquer caminho
+  // de saída (X, ESC, cancelar, salvar) — senão "Novo gasto" reabre em edição.
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingExpense(null);
+    form.reset(blankFormValues());
+  };
+
   const isRecurring = form.watch("is_recurring");
+
+  // Anos oferecidos no "Repete até": do ano de início do gasto em diante
+  const formStartYear =
+    parseInt((form.watch("date") || "").slice(0, 4)) ||
+    new Date().getFullYear();
+  const endYearOptions = Array.from({ length: 12 }, (_, i) =>
+    (formStartYear + i).toString(),
+  );
 
   const loadExpenses = async () => {
     try {
@@ -202,6 +251,8 @@ const ExpensesPage = () => {
           day_of_month: parseInt(dayStr),
           start_month: monthStr,
           start_year: parseInt(yearStr),
+          end_month: values.end_month || undefined,
+          end_year: values.end_year ? parseInt(values.end_year) : undefined,
         });
       } else {
         await api.post("/expenses", {
@@ -216,8 +267,7 @@ const ExpensesPage = () => {
         });
       }
 
-      setIsDialogOpen(false);
-      form.reset();
+      closeDialog();
       loadExpenses();
       refreshBalanceSummary();
     } catch (error) {
@@ -238,6 +288,10 @@ const ExpensesPage = () => {
       category: expense.category || "",
       date: expense.date.split("T")[0],
       is_recurring: expense.is_recurring || false,
+      end_month: expense.recurring_end_month || "",
+      end_year: expense.recurring_end_year
+        ? expense.recurring_end_year.toString()
+        : "",
     });
     setIsDialogOpen(true);
   };
@@ -252,6 +306,7 @@ const ExpensesPage = () => {
 
       if (editingExpense.is_recurring && editingExpense.recurring_id) {
         // Edição de gasto fixo: vale do mês selecionado em diante (versionamento).
+        // Término vazio = remove o limite (null); preenchido = novo fim.
         await api.put(`/recurring-expenses/${editingExpense.recurring_id}`, {
           effective_month: selectedMonth.toString().padStart(2, "0"),
           effective_year: selectedYear,
@@ -261,6 +316,8 @@ const ExpensesPage = () => {
           payment_method: values.payment_method,
           category: values.category,
           day_of_month: parseInt(dayStr),
+          end_month: values.end_month || null,
+          end_year: values.end_year ? parseInt(values.end_year) : null,
         });
       } else {
         await api.put(`/expenses/${editingExpense.id}`, {
@@ -275,9 +332,7 @@ const ExpensesPage = () => {
         });
       }
 
-      setIsDialogOpen(false);
-      setEditingExpense(null);
-      form.reset();
+      closeDialog();
       loadExpenses();
       refreshBalanceSummary();
     } catch (error) {
@@ -326,7 +381,16 @@ const ExpensesPage = () => {
         title="Gastos"
         description="Lance gastos do dia a dia (PIX, dinheiro, débito) e acompanhe o fluxo do mês."
         action={
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog
+            open={isDialogOpen}
+            onOpenChange={(open) => {
+              if (open) {
+                setIsDialogOpen(true);
+              } else {
+                closeDialog();
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -478,11 +542,85 @@ const ExpensesPage = () => {
                 />
 
                 {isRecurring && (
-                  <p className="-mt-1 text-xs text-muted-foreground">
-                    {editingExpense
-                      ? `A alteração vale a partir de ${months.find((m) => m.value === selectedMonth.toString().padStart(2, "0"))?.label}/${selectedYear}, preservando os meses anteriores. A data define o dia do mês da cobrança.`
-                      : "A data escolhida define o mês inicial e o dia da cobrança."}
-                  </p>
+                  <>
+                    <p className="-mt-1 text-xs text-muted-foreground">
+                      {editingExpense
+                        ? `A alteração vale a partir de ${months.find((m) => m.value === selectedMonth.toString().padStart(2, "0"))?.label}/${selectedYear}, preservando os meses anteriores. A data define o dia do mês da cobrança.`
+                        : "A data escolhida define o mês inicial e o dia da cobrança."}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="end_month"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Repete até (opcional)</FormLabel>
+                            <Select
+                              onValueChange={(value) =>
+                                field.onChange(value === "none" ? "" : value)
+                              }
+                              value={field.value || "none"}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sem prazo" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">Sem prazo</SelectItem>
+                                {months.map((month) => (
+                                  <SelectItem
+                                    key={month.value}
+                                    value={month.value}
+                                  >
+                                    {month.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="end_year"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ano</FormLabel>
+                            <Select
+                              onValueChange={(value) =>
+                                field.onChange(value === "none" ? "" : value)
+                              }
+                              value={field.value || "none"}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                <SelectItem value="none">—</SelectItem>
+                                {endYearOptions.map((year) => (
+                                  <SelectItem key={year} value={year}>
+                                    {year}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <p className="-mt-1 text-xs text-muted-foreground">
+                      Último mês em que o gasto se repete (ex.: curso com
+                      duração definida). "Sem prazo" repete indefinidamente.
+                    </p>
+                  </>
                 )}
 
                 <FormField
@@ -503,23 +641,7 @@ const ExpensesPage = () => {
                 />
 
                 <div className="flex justify-end gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false);
-                      setEditingExpense(null);
-                      form.reset({
-                        name: "",
-                        description: "",
-                        amount: "",
-                        payment_method: "PIX",
-                        category: "",
-                        date: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
-                        is_recurring: false,
-                      });
-                    }}
-                  >
+                  <Button type="button" variant="outline" onClick={closeDialog}>
                     Cancelar
                   </Button>
                   <Button type="submit" disabled={loading}>
@@ -619,7 +741,9 @@ const ExpensesPage = () => {
                       {expense.name}
                       {expense.is_recurring && (
                         <Badge className="border-primary/30 bg-primary/10 text-primary">
-                          Fixo
+                          {expense.recurring_end_month && expense.recurring_end_year
+                            ? `Fixo até ${expense.recurring_end_month}/${expense.recurring_end_year}`
+                            : "Fixo"}
                         </Badge>
                       )}
                     </CardTitle>

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { InMemoryRecurringExpenseRepository } from '@/repositories/in-memory/in-memory-recurring-expense-repository'
 import { ResourceNotFoundError } from './errors/resource-not-found-error'
 import { InvalidEffectiveMonthError } from './errors/invalid-effective-month-error'
+import { InvalidEndMonthError } from './errors/invalid-end-month-error'
 import { UpdateRecurringExpenseFromMonthService } from './update-recurring-expense-from-month'
 
 let repository: InMemoryRecurringExpenseRepository
@@ -111,6 +112,86 @@ describe('Update Recurring Expense From Month Service', () => {
 
     expect(recurringExpense.end_month).toBe('12')
     expect(recurringExpense.end_year).toBe(2026)
+  })
+
+  it('sets an end on a template without one (curso com duração definida)', async () => {
+    const template = await createTemplate()
+
+    const { recurringExpense } = await sut.execute({
+      id: template.id,
+      userId: 'user-1',
+      effectiveMonth: '03',
+      effectiveYear: 2026,
+      endMonth: '08',
+      endYear: 2026,
+    })
+
+    expect(repository.items).toHaveLength(1)
+    expect(recurringExpense.end_month).toBe('08')
+    expect(recurringExpense.end_year).toBe(2026)
+  })
+
+  it('applies a new end to the new version when editing from a later month', async () => {
+    const template = await createTemplate()
+
+    const { recurringExpense } = await sut.execute({
+      id: template.id,
+      userId: 'user-1',
+      effectiveMonth: '06',
+      effectiveYear: 2026,
+      amount: 150,
+      endMonth: '12',
+      endYear: 2026,
+    })
+
+    const original = await repository.findById(template.id)
+    expect(original?.end_month).toBe('05')
+    expect(recurringExpense.start_month).toBe('06')
+    expect(recurringExpense.end_month).toBe('12')
+    expect(recurringExpense.end_year).toBe(2026)
+  })
+
+  it('clears the end when null is passed explicitly', async () => {
+    const template = await repository.create({
+      name: 'Curso de inglês',
+      amount: 300,
+      paymentMethod: 'PIX',
+      dayOfMonth: 5,
+      startMonth: '01',
+      startYear: 2026,
+      endMonth: '06',
+      endYear: 2026,
+      userId: 'user-1',
+    })
+
+    const { recurringExpense } = await sut.execute({
+      id: template.id,
+      userId: 'user-1',
+      effectiveMonth: '01',
+      effectiveYear: 2026,
+      endMonth: null,
+      endYear: null,
+    })
+
+    expect(recurringExpense.end_month).toBeNull()
+    expect(recurringExpense.end_year).toBeNull()
+  })
+
+  it('rejects an end before the effective month', async () => {
+    const template = await createTemplate()
+
+    await expect(() =>
+      sut.execute({
+        id: template.id,
+        userId: 'user-1',
+        effectiveMonth: '06',
+        effectiveYear: 2026,
+        endMonth: '04',
+        endYear: 2026,
+      }),
+    ).rejects.toBeInstanceOf(InvalidEndMonthError)
+
+    expect(repository.items).toHaveLength(1)
   })
 
   it('rejects an effective month after the template end', async () => {

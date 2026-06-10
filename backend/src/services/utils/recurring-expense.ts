@@ -37,6 +37,8 @@ export function isRecurringActive(
 export type VirtualExpense = Expense & {
   is_recurring: boolean
   recurring_id: string
+  recurring_end_month: string | null
+  recurring_end_year: number | null
 }
 
 /**
@@ -69,6 +71,8 @@ export function toVirtualExpense(
     updated_at: recurring.updated_at,
     is_recurring: true,
     recurring_id: recurring.id,
+    recurring_end_month: recurring.end_month,
+    recurring_end_year: recurring.end_year,
   }
 }
 

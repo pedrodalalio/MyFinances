@@ -2,6 +2,7 @@ import { PaymentMethod, RecurringExpense } from '@prisma/client'
 import { RecurringExpenseRepository } from '@/repositories/recurring-expense-repository'
 import { ResourceNotFoundError } from './errors/resource-not-found-error'
 import { InvalidEffectiveMonthError } from './errors/invalid-effective-month-error'
+import { InvalidEndMonthError } from './errors/invalid-end-month-error'
 import { previousMonth } from './utils/recurring-expense'
 
 interface UpdateRecurringExpenseFromMonthServiceRequest {
@@ -15,6 +16,9 @@ interface UpdateRecurringExpenseFromMonthServiceRequest {
   paymentMethod?: PaymentMethod
   category?: string
   dayOfMonth?: number
+  /** undefined = mantém o fim atual; null = remove o limite; valor = novo fim */
+  endMonth?: string | null
+  endYear?: number | null
 }
 
 interface UpdateRecurringExpenseFromMonthServiceResponse {
@@ -56,9 +60,18 @@ export class UpdateRecurringExpenseFromMonthService {
 
     // Editar a partir do próprio início (ou antes): atualiza o template no lugar.
     if (effectiveDate <= startDate) {
+      if (data.endMonth != null && data.endYear != null) {
+        const newEnd = new Date(data.endYear, parseInt(data.endMonth) - 1)
+        if (newEnd < startDate) {
+          throw new InvalidEndMonthError()
+        }
+      }
+
       const recurringExpense = await this.recurringExpenseRepository.update({
         id: existing.id,
         ...fields,
+        ...(data.endMonth !== undefined && { endMonth: data.endMonth }),
+        ...(data.endYear !== undefined && { endYear: data.endYear }),
       })
 
       return { recurringExpense }
@@ -67,6 +80,16 @@ export class UpdateRecurringExpenseFromMonthService {
     // Editar a partir de um mês posterior: fecha o template atual no mês anterior
     // ao efetivo e cria um novo template (versão) a partir do mês efetivo,
     // preservando o histórico dos meses anteriores. Atômico via transação.
+    const newEndMonth = data.endMonth === undefined ? existing.end_month : data.endMonth
+    const newEndYear = data.endYear === undefined ? existing.end_year : data.endYear
+
+    if (newEndMonth != null && newEndYear != null) {
+      const newEnd = new Date(newEndYear, parseInt(newEndMonth) - 1)
+      if (newEnd < effectiveDate) {
+        throw new InvalidEndMonthError()
+      }
+    }
+
     const prev = previousMonth(data.effectiveMonth, data.effectiveYear)
 
     const recurringExpense = await this.recurringExpenseRepository.closeAndCreateNext(
@@ -81,8 +104,8 @@ export class UpdateRecurringExpenseFromMonthService {
         dayOfMonth: fields.dayOfMonth ?? existing.day_of_month,
         startMonth: data.effectiveMonth,
         startYear: data.effectiveYear,
-        endMonth: existing.end_month,
-        endYear: existing.end_year,
+        endMonth: newEndMonth,
+        endYear: newEndYear,
         userId: data.userId,
       },
     )
