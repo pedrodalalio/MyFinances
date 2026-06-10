@@ -59,4 +59,34 @@ export class PrismaRecurringExpenseRepository implements RecurringExpenseReposit
   async delete(id: string): Promise<void> {
     await prisma.recurringExpense.delete({ where: { id } })
   }
+
+  async closeAndCreateNext(
+    closeId: string,
+    end: { month: string; year: number },
+    create: CreateRecurringExpenseData,
+  ): Promise<RecurringExpense> {
+    const [, created] = await prisma.$transaction([
+      prisma.recurringExpense.update({
+        where: { id: closeId },
+        data: { end_month: end.month, end_year: end.year },
+      }),
+      prisma.recurringExpense.create({
+        data: {
+          name: create.name,
+          description: create.description,
+          amount: create.amount,
+          payment_method: create.paymentMethod,
+          category: create.category,
+          day_of_month: create.dayOfMonth,
+          start_month: create.startMonth,
+          start_year: create.startYear,
+          end_month: create.endMonth ?? null,
+          end_year: create.endYear ?? null,
+          user_id: create.userId,
+        },
+      }),
+    ])
+
+    return created
+  }
 }

@@ -3,12 +3,13 @@ import { FastifyRequest, FastifyReply } from "fastify"
 import { UpdateRecurringExpenseFromMonthService } from "@/services/update-recurring-expense-from-month"
 import { PrismaRecurringExpenseRepository } from "@/repositories/prisma/prisma-recurring-expense-repository"
 import { ResourceNotFoundError } from "@/services/errors/resource-not-found-error"
+import { InvalidEffectiveMonthError } from "@/services/errors/invalid-effective-month-error"
 
 export async function updateFromMonth(request: FastifyRequest, reply: FastifyReply) {
   const paramsSchema = z.object({ id: z.string() })
 
   const bodySchema = z.object({
-    effective_month: z.string(),
+    effective_month: z.string().regex(/^(0[1-9]|1[0-2])$/, 'month must be 01-12'),
     effective_year: z.number().int(),
     name: z.string().optional(),
     description: z.string().optional(),
@@ -42,6 +43,9 @@ export async function updateFromMonth(request: FastifyRequest, reply: FastifyRep
   } catch (error) {
     if (error instanceof ResourceNotFoundError) {
       return reply.status(404).send({ message: error.message })
+    }
+    if (error instanceof InvalidEffectiveMonthError) {
+      return reply.status(400).send({ message: error.message })
     }
     throw error
   }

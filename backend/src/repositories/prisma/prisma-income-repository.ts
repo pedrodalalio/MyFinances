@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { Income } from '@prisma/client'
+import { Income, Prisma } from '@prisma/client'
 import { CreateIncomeData, UpdateIncomeData, IncomeRepository } from '../income-repository'
 
 export class PrismaIncomeRepository implements IncomeRepository {
@@ -47,7 +47,7 @@ export class PrismaIncomeRepository implements IncomeRepository {
   }
 
   async update(data: UpdateIncomeData): Promise<Income> {
-    const updateData: any = {}
+    const updateData: Prisma.IncomeUncheckedUpdateInput = {}
 
     if (data.name !== undefined) updateData.name = data.name
     if (data.description !== undefined) updateData.description = data.description

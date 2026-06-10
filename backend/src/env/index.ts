@@ -1,12 +1,18 @@
 import "dotenv/config";
 import { z } from "zod";
 
-const envSchema = z.object({
-  NODE_ENV: z.enum(["dev", "test", "production"]).default("dev"),
-  JWT_SECRET: z.string(),
-  PORT: z.coerce.number().default(3333),
-  FRONTEND_URL: z.string().url().optional(),
-});
+const envSchema = z
+  .object({
+    NODE_ENV: z.enum(["dev", "test", "production"]).default("dev"),
+    JWT_SECRET: z.string(),
+    PORT: z.coerce.number().default(3333),
+    FRONTEND_URL: z.string().url().optional(),
+  })
+  .refine((env) => env.NODE_ENV !== "production" || !!env.FRONTEND_URL, {
+    message:
+      "FRONTEND_URL is required in production (CORS would block every origin without it)",
+    path: ["FRONTEND_URL"],
+  });
 
 const _env = envSchema.safeParse(process.env);
 

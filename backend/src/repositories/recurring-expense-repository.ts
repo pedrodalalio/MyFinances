@@ -34,4 +34,14 @@ export interface RecurringExpenseRepository {
   findById(id: string): Promise<RecurringExpense | null>
   update(data: UpdateRecurringExpenseData): Promise<RecurringExpense>
   delete(id: string): Promise<void>
+  /**
+   * Versionamento atômico: fecha o template `closeId` em `end` e cria a nova
+   * versão em uma única transação, para nunca deixar o gasto fixo truncado
+   * sem a versão seguinte.
+   */
+  closeAndCreateNext(
+    closeId: string,
+    end: { month: string; year: number },
+    create: CreateRecurringExpenseData,
+  ): Promise<RecurringExpense>
 }

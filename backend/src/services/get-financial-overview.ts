@@ -8,6 +8,7 @@ import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { TransferBalanceToNextMonthService } from "./transfer-balance-to-next-month";
 import { ResourceNotFoundError } from "./errors/resource-not-found-error";
+import { isRecurringActive } from "./utils/recurring-expense";
 
 interface GetFinancialOverviewServiceRequest {
   userId: string;
@@ -30,6 +31,7 @@ interface GetFinancialOverviewServiceResponse {
       investment_subtotal: number;
       credit_card_subtotal: number;
       tax_subtotal: number;
+      is_confirmed: boolean;
     };
     // Informações do salário atual
     salary: {
@@ -40,6 +42,7 @@ interface GetFinancialOverviewServiceResponse {
     analysis: {
       expense_percentage: number;
       reserve_percentage: number;
+      reserve_amount: number;
       available_amount: number;
       is_over_budget: boolean;
       monthly_surplus_deficit: number;
@@ -131,23 +134,9 @@ export class GetFinancialOverviewService {
     );
 
     // Filtrar gastos recorrentes ativos no período
-    const activeRecurringPurchases = recurringPurchases.filter((purchase) => {
-      if (!purchase.is_recurring) return false;
-      const startDate = new Date(
-        purchase.start_year,
-        parseInt(purchase.start_month) - 1,
-      );
-      const requestedDate = new Date(year, parseInt(month) - 1);
-      if (startDate > requestedDate) return false;
-      if (purchase.end_month && purchase.end_year) {
-        const endDate = new Date(
-          purchase.end_year,
-          parseInt(purchase.end_month) - 1,
-        );
-        if (endDate < requestedDate) return false;
-      }
-      return true;
-    });
+    const activeRecurringPurchases = recurringPurchases.filter(
+      (purchase) => purchase.is_recurring && isRecurringActive(purchase, month, year),
+    );
 
     // Calcular total real de gastos do cartão
     const installmentsTotal = installments.reduce(
@@ -318,18 +307,20 @@ export class GetFinancialOverviewService {
     const prevInvestments = await this.investmentRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
     const prevTaxes = await this.taxRepository.findByMonthAndUser(userId, previousMonthStr, previousYear);
 
-    const activeRecurring = prevRecurringPurchases.filter((p) => {
-      if (!p.is_recurring) return false;
-      const startDate = new Date(p.start_year, parseInt(p.start_month) - 1);
-      const requestedDate = new Date(previousYear, parseInt(previousMonthStr) - 1);
-      return startDate <= requestedDate;
-    });
+    const activeRecurring = prevRecurringPurchases.filter(
+      (p) => p.is_recurring && isRecurringActive(p, previousMonthStr, previousYear),
+    );
 
     const creditCardTotal = prevInstallments.reduce((s, i) => s + Number(i.installment_amount), 0)
       + activeRecurring.reduce((s, p) => s + Number(p.installment_amount), 0);
     const expensesTotal = prevExpenses.reduce((s, e) => s + Number(e.amount), 0);
     const incomesTotal = prevIncomes.reduce((s, i) => s + Number(i.amount), 0);
-    const investmentsTotal = prevInvestments.reduce((s, i) => s + Number(i.amount), 0);
+    // Mesma regra do confirm-month: ETF entra como valor unitário x quantidade.
+    const investmentsTotal = prevInvestments.reduce((s, i) => {
+      const amount = Number(i.amount);
+      const qty = i.quantity ? Number(i.quantity) : 1;
+      return s + (i.investment_type === 'ETF' ? amount * qty : amount);
+    }, 0);
     const taxesTotal = prevTaxes.reduce((s, t) => s + Number(t.amount), 0);
 
     const prevSalaryAmount = prevSalary ? Number(prevSalary.amount) : Number(previousMonthData.main_income);

@@ -8,4 +8,12 @@ export interface FinancialDataRepository {
   updateCreditCardSubtotal(id: string, creditCardSubtotal: number): Promise<FinancialData>
   findManyByUser(userId: string): Promise<FinancialData[]>
   delete(id: string): Promise<void>
+  /**
+   * Marca o mês `currentId` como confirmado e grava o previous_balance do mês
+   * seguinte (criando-o se não existir) em uma única transação.
+   */
+  confirmAndCarryOver(
+    currentId: string,
+    next: { userId: string; month: string; year: number; previousBalance: number },
+  ): Promise<void>
 }

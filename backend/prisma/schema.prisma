@@ -139,6 +139,7 @@ model Transaction {
 
   financialData FinancialData @relation(fields: [financial_data_id], references: [id], onDelete: Cascade)
 
+  @@index([financial_data_id])
   @@map("transactions")
 }
 
@@ -163,6 +164,7 @@ model CreditCardPurchase {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
   installments_data CreditCardInstallment[]
 
+  @@index([user_id])
   @@map("credit_card_purchases")
 }
 
@@ -179,6 +181,8 @@ model CreditCardInstallment {
 
   creditCardPurchase CreditCardPurchase @relation(fields: [purchase_id], references: [id], onDelete: Cascade)
 
+  @@index([purchase_id])
+  @@index([month, year])
   @@map("credit_card_installments")
 }
 
@@ -195,6 +199,7 @@ model SalaryProfile {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id])
   @@map("salary_profiles")
 }
 
@@ -214,6 +219,7 @@ model Expense {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id, month, year])
   @@map("expenses")
 }
 
@@ -235,6 +241,7 @@ model RecurringExpense {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id])
   @@map("recurring_expenses")
 }
 
@@ -254,6 +261,7 @@ model Income {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id, month, year])
   @@map("incomes")
 }
 
@@ -283,6 +291,7 @@ model Investment {
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
   snapshots InvestmentSnapshot[]
 
+  @@index([user_id, purchase_date])
   @@map("investments")
 }
 
@@ -362,6 +371,7 @@ model Tax {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id, month, year])
   @@map("taxes")
 }
 

@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, Wallet, Trash2, Edit } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
@@ -42,6 +43,16 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const months = [
   { value: "01", label: "Janeiro" },
@@ -112,6 +123,7 @@ const ExpensesPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, "0")}`;
@@ -162,6 +174,7 @@ const ExpensesPage = () => {
       setExpenses(response.data.expenses || []);
     } catch (error) {
       console.error("Erro ao carregar gastos:", error);
+      toast.error("Não foi possível carregar os gastos. Tente novamente.");
     }
   };
 
@@ -209,6 +222,7 @@ const ExpensesPage = () => {
       refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao criar gasto:", error);
+      toast.error("Não foi possível salvar o gasto.");
     } finally {
       setLoading(false);
     }
@@ -268,6 +282,7 @@ const ExpensesPage = () => {
       refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao atualizar gasto:", error);
+      toast.error("Não foi possível atualizar o gasto.");
     } finally {
       setLoading(false);
     }
@@ -288,6 +303,9 @@ const ExpensesPage = () => {
       refreshBalanceSummary();
     } catch (error) {
       console.error("Erro ao deletar gasto:", error);
+      toast.error("Não foi possível excluir o gasto.");
+    } finally {
+      setDeletingExpense(null);
     }
   };
 
@@ -621,7 +639,7 @@ const ExpensesPage = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => deleteExpense(expense)}
+                      onClick={() => setDeletingExpense(expense)}
                       className="text-destructive hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -667,6 +685,39 @@ const ExpensesPage = () => {
           ))
         )}
       </div>
+
+      <AlertDialog
+        open={!!deletingExpense}
+        onOpenChange={(open) => !open && setDeletingExpense(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deletingExpense?.is_recurring
+                ? "Excluir gasto fixo?"
+                : "Excluir gasto?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletingExpense?.is_recurring
+                ? `"${deletingExpense?.name}" deixará de se repetir a partir de ${
+                    months.find(
+                      (m) =>
+                        m.value === selectedMonth.toString().padStart(2, "0"),
+                    )?.label
+                  }/${selectedYear}. Os meses anteriores serão preservados — exceto se este for o primeiro mês do gasto fixo, caso em que ele será removido por completo.`
+                : `"${deletingExpense?.name}" será excluído permanentemente.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingExpense && deleteExpense(deletingExpense)}
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

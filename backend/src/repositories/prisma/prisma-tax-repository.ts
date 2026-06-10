@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { Tax } from '@prisma/client'
+import { Tax, Prisma } from '@prisma/client'
 import { CreateTaxData, UpdateTaxData, TaxRepository } from '../tax-repository'
 
 export class PrismaTaxRepository implements TaxRepository {
@@ -47,7 +47,7 @@ export class PrismaTaxRepository implements TaxRepository {
   }
 
   async update(data: UpdateTaxData): Promise<Tax> {
-    const updateData: any = {}
+    const updateData: Prisma.TaxUncheckedUpdateInput = {}
 
     if (data.taxType !== undefined) updateData.tax_type = data.taxType
     if (data.amount !== undefined) updateData.amount = data.amount

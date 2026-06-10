@@ -1,12 +1,23 @@
 import { Expense, RecurringExpense } from '@prisma/client'
 
 /**
- * Verifica se um gasto fixo (template) está ativo num determinado mês/ano.
+ * Janela de vigência mensal. Cobre tanto gastos fixos (RecurringExpense)
+ * quanto compras recorrentes do cartão (CreditCardPurchase), que compartilham
+ * o mesmo formato de start/end.
+ */
+export interface MonthlyRecurrence {
+  start_month: string
+  start_year: number
+  end_month: string | null
+  end_year: number | null
+}
+
+/**
+ * Verifica se uma recorrência está ativa num determinado mês/ano.
  * Janela inclusiva: ativo se start <= mês <= end (ou sem end).
- * Mesma lógica de comparação usada para compras recorrentes do cartão.
  */
 export function isRecurringActive(
-  recurring: RecurringExpense,
+  recurring: MonthlyRecurrence,
   month: string,
   year: number,
 ): boolean {
@@ -38,7 +49,10 @@ export function toVirtualExpense(
   month: string,
   year: number,
 ): VirtualExpense {
-  const day = Math.min(Math.max(recurring.day_of_month, 1), 28)
+  // Dia 29-31 em meses mais curtos cai no último dia do mês (ex.: dia 31 em
+  // fevereiro vira 28/29), comportamento padrão de cobranças recorrentes.
+  const daysInMonth = new Date(year, parseInt(month), 0).getDate()
+  const day = Math.min(Math.max(recurring.day_of_month, 1), daysInMonth)
 
   return {
     id: `rec_${recurring.id}_${year}${month}`,

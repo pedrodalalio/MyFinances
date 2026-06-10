@@ -106,4 +106,37 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
       where: { id },
     });
   }
+
+  async confirmAndCarryOver(
+    currentId: string,
+    next: { userId: string; month: string; year: number; previousBalance: number },
+  ) {
+    await prisma.$transaction([
+      prisma.financialData.update({
+        where: { id: currentId },
+        data: { is_confirmed: true },
+      }),
+      prisma.financialData.upsert({
+        where: {
+          user_id_month_year: {
+            user_id: next.userId,
+            month: next.month,
+            year: next.year,
+          },
+        },
+        create: {
+          user_id: next.userId,
+          month: next.month,
+          year: next.year,
+          main_income: 0,
+          checking_account: 0,
+          previous_balance: next.previousBalance,
+          total_in_account: 0,
+        },
+        update: {
+          previous_balance: next.previousBalance,
+        },
+      }),
+    ]);
+  }
 }

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { Investment } from '@prisma/client'
+import { Investment, Prisma } from '@prisma/client'
 import { CreateInvestmentData, UpdateInvestmentData, InvestmentRepository } from '../investment-repository'
 
 export class PrismaInvestmentRepository implements InvestmentRepository {
@@ -62,7 +62,7 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
   }
 
   async update(data: UpdateInvestmentData): Promise<Investment> {
-    const updateData: any = {}
+    const updateData: Prisma.InvestmentUncheckedUpdateInput = {}
 
     if (data.name !== undefined) updateData.name = data.name
     if (data.description !== undefined) updateData.description = data.description

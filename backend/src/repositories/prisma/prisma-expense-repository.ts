@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { Expense } from '@prisma/client'
+import { Expense, Prisma } from '@prisma/client'
 import { CreateExpenseData, UpdateExpenseData, ExpenseRepository, ExpenseWithRecurring } from '../expense-repository'
 import { isRecurringActive, toVirtualExpense } from '@/services/utils/recurring-expense'
 
@@ -60,7 +60,7 @@ export class PrismaExpenseRepository implements ExpenseRepository {
   }
 
   async update(data: UpdateExpenseData): Promise<Expense> {
-    const updateData: any = {}
+    const updateData: Prisma.ExpenseUncheckedUpdateInput = {}
 
     if (data.name !== undefined) updateData.name = data.name
     if (data.description !== undefined) updateData.description = data.description

@@ -7,6 +7,7 @@ import { IncomeRepository } from "@/repositories/income-repository";
 import { InvestmentRepository } from "@/repositories/investment-repository";
 import { TaxRepository } from "@/repositories/tax-repository";
 import { ResourceNotFoundError } from "./errors/resource-not-found-error";
+import { isRecurringActive } from "./utils/recurring-expense";
 
 interface ConfirmMonthServiceRequest {
   userId: string;
@@ -79,23 +80,9 @@ export class ConfirmMonthService {
     );
 
     // Calcular gastos reais
-    const activeRecurringPurchases = recurringPurchases.filter((purchase) => {
-      if (!purchase.is_recurring) return false;
-      const startDate = new Date(
-        purchase.start_year,
-        parseInt(purchase.start_month) - 1,
-      );
-      const requestedDate = new Date(year, parseInt(month) - 1);
-      if (startDate > requestedDate) return false;
-      if (purchase.end_month && purchase.end_year) {
-        const endDate = new Date(
-          purchase.end_year,
-          parseInt(purchase.end_month) - 1,
-        );
-        if (endDate < requestedDate) return false;
-      }
-      return true;
-    });
+    const activeRecurringPurchases = recurringPurchases.filter(
+      (purchase) => purchase.is_recurring && isRecurringActive(purchase, month, year),
+    );
 
     const installmentsTotal = installments.reduce(
       (sum, inst) => sum + Number(inst.installment_amount),
@@ -153,33 +140,13 @@ export class ConfirmMonthService {
     const nextYear = currentMonthInt === 12 ? year + 1 : year;
     const nextMonthStr = nextMonth.toString().padStart(2, "0");
 
-    let nextMonthData = await this.financialDataRepository.findByUserAndPeriod(
+    // Confirmar o mês atual e carregar o saldo para o próximo numa única
+    // transação, para nunca confirmar sem transferir (ou vice-versa).
+    await this.financialDataRepository.confirmAndCarryOver(currentMonthData.id, {
       userId,
-      nextMonthStr,
-      nextYear,
-    );
-
-    if (nextMonthData) {
-      // Se já existe, atualizar o previous_balance
-      await this.financialDataRepository.update(nextMonthData.id, {
-        previous_balance: finalBalance,
-      });
-    } else {
-      // Se não existe, criar dados para o próximo mês
-      await this.financialDataRepository.create({
-        user_id: userId,
-        month: nextMonthStr,
-        year: nextYear,
-        main_income: 0,
-        checking_account: 0,
-        previous_balance: finalBalance,
-        total_in_account: 0,
-      });
-    }
-
-    // Marcar o mês atual como confirmado
-    await this.financialDataRepository.update(currentMonthData.id, {
-      is_confirmed: true,
+      month: nextMonthStr,
+      year: nextYear,
+      previousBalance: finalBalance,
     });
   }
 }

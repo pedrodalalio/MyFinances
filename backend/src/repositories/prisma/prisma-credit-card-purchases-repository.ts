@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
-import { CreditCardPurchasesRepository } from "../credit-card-purchases-repository"
+import {
+  CreditCardPurchasesRepository,
+  InstallmentRowForPurchase,
+} from "../credit-card-purchases-repository"
 
 export class PrismaCreditCardPurchasesRepository implements CreditCardPurchasesRepository {
   async create(data: Prisma.CreditCardPurchaseCreateInput) {
@@ -12,6 +15,29 @@ export class PrismaCreditCardPurchasesRepository implements CreditCardPurchasesR
     })
 
     return creditCardPurchase
+  }
+
+  async createWithInstallments(
+    data: Prisma.CreditCardPurchaseUncheckedCreateInput,
+    installments: InstallmentRowForPurchase[],
+  ) {
+    return prisma.$transaction(async (tx) => {
+      const purchase = await tx.creditCardPurchase.create({ data })
+
+      if (installments.length > 0) {
+        await tx.creditCardInstallment.createMany({
+          data: installments.map((installment) => ({
+            ...installment,
+            purchase_id: purchase.id,
+          })),
+        })
+      }
+
+      return tx.creditCardPurchase.findUniqueOrThrow({
+        where: { id: purchase.id },
+        include: { installments_data: true },
+      })
+    })
   }
 
   async findManyByUser(userId: string) {
