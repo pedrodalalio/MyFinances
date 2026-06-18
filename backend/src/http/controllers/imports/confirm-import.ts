@@ -30,8 +30,11 @@ export async function confirmImport(request: FastifyRequest, reply: FastifyReply
 
   const userId = request.user.sub
 
-  // Filtrar transações não-ignoradas
-  const activeTransactions = importRecord.transactions.filter(t => t.type !== "IGNORE")
+  // Filtrar transações não-ignoradas e que ainda não foram cadastradas
+  // individualmente (via botão "Cadastrar" de cada linha).
+  const activeTransactions = importRecord.transactions.filter(
+    t => t.type !== "IGNORE" && !t.is_confirmed,
+  )
 
   // Agrupar transações pelo group_key + type
   const groups = new Map<string, ImportTransaction[]>()

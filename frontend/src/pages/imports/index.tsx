@@ -12,8 +12,10 @@ import {
   FileText,
   Eye,
   Ban,
+  AlertTriangle,
 } from "lucide-react";
 import { api } from "@/utils/api";
+import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -91,7 +93,24 @@ interface ImportTransaction {
   is_duplicate: boolean;
   duplicate_of: string | null;
   group_key: string | null;
+  is_confirmed: boolean;
 }
+
+interface OrphanRecord {
+  kind: string;
+  name: string;
+  amount: number;
+  direction: string;
+}
+
+const orphanKindLabels: Record<string, string> = {
+  expense: "Gasto",
+  income: "Entrada",
+  investment: "Investimento",
+  tax: "Imposto",
+  recurring: "Gasto fixo",
+  salary: "Salário",
+};
 
 interface ImportRecord {
   id: string;
@@ -125,6 +144,7 @@ const ImportsPage = () => {
   const [selectedImport, setSelectedImport] = useState<ImportRecord | null>(
     null,
   );
+  const [orphans, setOrphans] = useState<OrphanRecord[]>([]);
   const [uploading, setUploading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -159,6 +179,7 @@ const ImportsPage = () => {
 
       // Abrir detalhes da importação recém-criada
       setSelectedImport(response.data.import);
+      setOrphans(response.data.orphans || []);
       setIsDetailOpen(true);
       loadImports();
     } catch (error: any) {
@@ -175,6 +196,7 @@ const ImportsPage = () => {
     try {
       const response = await api.get(`/imports/${importRecord.id}`);
       setSelectedImport(response.data.import);
+      setOrphans(response.data.orphans || []);
       setIsDetailOpen(true);
     } catch (error) {
       console.error("Erro ao carregar detalhes:", error);
@@ -224,6 +246,30 @@ const ImportsPage = () => {
     }
   };
 
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const confirmSingleTransaction = async (transactionId: string) => {
+    setConfirmingId(transactionId);
+    try {
+      await api.post(`/imports/transactions/${transactionId}/confirm`);
+      if (selectedImport?.transactions) {
+        setSelectedImport({
+          ...selectedImport,
+          transactions: selectedImport.transactions.map((t) =>
+            t.id === transactionId ? { ...t, is_confirmed: true } : t,
+          ),
+        });
+      }
+      refreshBalanceSummary();
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.message || "Erro ao cadastrar transação.";
+      alert(msg);
+    } finally {
+      setConfirmingId(null);
+    }
+  };
+
   const confirmImport = async () => {
     if (!selectedImport) return;
 
@@ -239,6 +285,7 @@ const ImportsPage = () => {
       setIsDetailOpen(false);
       setSelectedImport(null);
       loadImports();
+      refreshBalanceSummary();
     } catch (error: any) {
       const msg =
         error?.response?.data?.message || "Erro ao confirmar importação.";
@@ -310,14 +357,14 @@ const ImportsPage = () => {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".csv,.ofx,.ofc,.txt"
+        accept=".csv,.ofx,.ofc,.txt,.pdf"
         onChange={handleUpload}
         className="hidden"
       />
       <PageHeader
         eyebrow="Sincronização"
         title="Importações"
-        description="Importe extratos bancários (CSV ou OFX) e categorize transações automaticamente."
+        description="Importe extratos bancários (PDF, CSV ou OFX) e categorize transações automaticamente."
         action={
           <Button
             onClick={() => fileInputRef.current?.click()}
@@ -405,7 +452,7 @@ const ImportsPage = () => {
       {/* Modal de detalhes da importação */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
         <DialogContent
-          className="max-w-5xl max-h-[90vh] overflow-y-auto"
+          className="w-[70vw] max-w-[1500px] sm:max-w-[1500px] max-h-[90vh] overflow-y-auto"
           onInteractOutside={(e) => e.preventDefault()}
         >
           <DialogHeader>
@@ -420,7 +467,7 @@ const ImportsPage = () => {
           </DialogHeader>
 
           {summary && (
-            <div className="space-y-4">
+            <div className="space-y-4 min-w-0">
               {/* Resumo */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="p-3 bg-destructive/10 rounded-lg">
@@ -483,8 +530,8 @@ const ImportsPage = () => {
               {/* Lista de transações */}
               <div className="space-y-2">
                 <h3 className="font-semibold text-sm">Transações</h3>
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-sm">
+                <div className="border rounded-lg overflow-x-auto">
+                  <table className="w-full text-sm min-w-[640px]">
                     <thead>
                       <tr className="border-b bg-muted/50">
                         <th className="text-left p-2">Data</th>
@@ -492,13 +539,14 @@ const ImportsPage = () => {
                         <th className="text-right p-2">Valor</th>
                         <th className="text-left p-2">Tipo</th>
                         <th className="text-left p-2">Categoria</th>
+                        <th className="text-right p-2">Ação</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedImport?.transactions?.map((t) => (
                         <tr
                           key={t.id}
-                          className={`border-b hover:bg-muted/30 ${t.type === "IGNORE" ? "opacity-40" : ""}`}
+                          className={`border-b hover:bg-muted/30 ${t.type === "IGNORE" ? "opacity-40" : ""} ${t.is_confirmed ? "bg-[color:var(--success)]/5" : ""}`}
                         >
                           <td className="p-2 whitespace-nowrap">
                             {formatDate(t.date)}
@@ -594,12 +642,75 @@ const ImportsPage = () => {
                               </span>
                             )}
                           </td>
+                          <td className="p-2 text-right whitespace-nowrap">
+                            {selectedImport.status !== "confirmed" &&
+                              (t.is_confirmed ? (
+                                <span className="inline-flex items-center gap-1 text-xs text-[color:var(--success)] font-medium">
+                                  <Check className="h-3 w-3" />
+                                  Cadastrado
+                                </span>
+                              ) : t.type !== "IGNORE" && t.type !== "TRANSFER" ? (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7"
+                                  disabled={confirmingId === t.id}
+                                  onClick={() => confirmSingleTransaction(t.id)}
+                                >
+                                  {confirmingId === t.id
+                                    ? "..."
+                                    : "Cadastrar"}
+                                </Button>
+                              ) : null)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               </div>
+
+              {/* Registros órfãos: cadastrados no app mas ausentes no extrato */}
+              {orphans.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-[color:var(--warning)]" />
+                    <h3 className="font-semibold text-sm">
+                      Cadastrado no app, mas não encontrado no extrato (
+                      {orphans.length})
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Estes lançamentos existem no MyFinances mas não têm
+                    correspondente neste extrato — podem ser erros de cadastro,
+                    duplicados ou lançamentos de outro período/conta. Confira.
+                  </p>
+                  <div className="border border-[color:var(--warning)]/40 rounded-lg overflow-x-auto">
+                    <table className="w-full text-sm min-w-[480px]">
+                      <thead>
+                        <tr className="border-b bg-[color:var(--warning)]/10">
+                          <th className="text-left p-2">Tipo</th>
+                          <th className="text-left p-2">Descrição</th>
+                          <th className="text-right p-2">Valor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orphans.map((o, i) => (
+                          <tr key={i} className="border-b hover:bg-muted/30">
+                            <td className="p-2 whitespace-nowrap">
+                              {orphanKindLabels[o.kind] || o.kind}
+                            </td>
+                            <td className="p-2">{o.name}</td>
+                            <td className="p-2 text-right whitespace-nowrap font-medium">
+                              R$ {formatCurrency(Number(o.amount))}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Botão de confirmar */}
               {selectedImport?.status !== "confirmed" && (

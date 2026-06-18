@@ -85,10 +85,18 @@ export class DashboardSummaryService {
     });
     const totalInstallments = creditCardData.expenses.length;
 
-    // Get total investments from unified system
+    // Total de investimentos: mesma regra do portfólio/navbar — considera
+    // apenas posições ATIVAS e não vencidas, somando o valor bruto atual
+    // (gross_yield) ou o valor aplicado quando não houver. Sem o filtro, o
+    // total ficava inflado por CDBs vencidos/resgatados (MATURED/SOLD).
     const investmentsWithPortfolio =
       await this.investmentRepository.findAllPortfolioByUser(userId);
-    const totalInvestments = investmentsWithPortfolio.reduce(
+    const countableInvestments = investmentsWithPortfolio.filter((investment) => {
+      if (investment.status !== "ACTIVE") return false;
+      if (investment.maturity_date && investment.maturity_date.getTime() <= Date.now()) return false;
+      return true;
+    });
+    const totalInvestments = countableInvestments.reduce(
       (sum, investment) => {
         const amount = Number(investment.amount)
         const qty = investment.quantity ? Number(investment.quantity) : 1
