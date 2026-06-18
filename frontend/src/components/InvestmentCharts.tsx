@@ -111,6 +111,18 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
     return investments.filter(inv => inv.investment_type === selectedFilter);
   }, [investments, selectedFilter]);
 
+  // Só faz sentido separar Bruto x Líquido quando algum ativo tem líquido
+  // diferente do bruto (ex: renda fixa com IR). Para ETF/FII os dois são iguais,
+  // então colapsamos em uma única série "Atual" para não duplicar nos gráficos.
+  const hasNetDistinction = React.useMemo(() => {
+    return filteredInvestments.some(inv => {
+      const gross = Number(inv.gross_yield ?? 0);
+      const net = inv.net_value != null ? Number(inv.net_value) : null;
+      return net != null && gross > 0 && Math.abs(net - gross) > 0.001;
+    });
+  }, [filteredInvestments]);
+  const valueLabel = hasNetDistinction ? "Bruto" : "Atual";
+
   // Dados para distribuição
   const distributionData = React.useMemo(() => {
     if (effectiveViewMode === "type") {
@@ -420,7 +432,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
       {barChartData.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Investido vs Bruto vs Líquido</CardTitle>
+            <CardTitle>{hasNetDistinction ? "Investido vs Bruto vs Líquido" : "Investido vs Atual"}</CardTitle>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -437,8 +449,8 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                 <Tooltip content={<CustomTooltip />} />
                 <Legend />
                 <Bar dataKey="investido" fill="#94a3b8" name="Investido" />
-                <Bar dataKey="bruto" fill="#8884d8" name="Bruto" />
-                <Bar dataKey="liquido" fill="#22c55e" name="Líquido" />
+                <Bar dataKey="bruto" fill="#8884d8" name={valueLabel} />
+                {hasNetDistinction && <Bar dataKey="liquido" fill="#22c55e" name="Líquido" />}
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
@@ -459,8 +471,8 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                     <th className="text-left p-2">Grupo</th>
                     <th className="text-right p-2">Qtd</th>
                     <th className="text-right p-2">Aplicado</th>
-                    <th className="text-right p-2">Bruto</th>
-                    <th className="text-right p-2">Líquido</th>
+                    <th className="text-right p-2">{valueLabel}</th>
+                    {hasNetDistinction && <th className="text-right p-2">Líquido</th>}
                     <th className="text-right p-2">Retorno · {periodLabel}</th>
                     <th className="text-right p-2">% · {periodLabel}</th>
                   </tr>
@@ -476,7 +488,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         <td className="text-right p-2">{group.count}</td>
                         <td className="text-right p-2">{formatCurrency(group.investido)}</td>
                         <td className="text-right p-2">{formatCurrency(group.bruto)}</td>
-                        <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(group.liquido)}</td>
+                        {hasNetDistinction && <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(group.liquido)}</td>}
                         <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
@@ -497,8 +509,8 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                     <th className="text-right p-2">Corretora</th>
                     <th className="text-right p-2">Taxa</th>
                     <th className="text-right p-2">Aplicado</th>
-                    <th className="text-right p-2">Bruto</th>
-                    <th className="text-right p-2">Líquido</th>
+                    <th className="text-right p-2">{valueLabel}</th>
+                    {hasNetDistinction && <th className="text-right p-2">Líquido</th>}
                     <th className="text-right p-2">Retorno · {periodLabel}</th>
                     <th className="text-right p-2">% · {periodLabel}</th>
                   </tr>
@@ -529,7 +541,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                         </td>
                         <td className="text-right p-2">{formatCurrency(initialValue)}</td>
                         <td className="text-right p-2">{formatCurrency(currentValue)}</td>
-                        <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(netValue)}</td>
+                        {hasNetDistinction && <td className="text-right p-2 text-[color:var(--success)] font-medium">{formatCurrency(netValue)}</td>}
                         <td className={`text-right p-2 ${!hasPeriod ? 'text-muted-foreground' : periodReturn >= 0 ? 'text-[color:var(--success)]' : 'text-destructive'}`}>
                           {hasPeriod ? formatCurrency(periodReturn) : "—"}
                         </td>
