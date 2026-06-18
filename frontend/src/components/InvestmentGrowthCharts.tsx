@@ -37,12 +37,14 @@ const TYPE_LABELS: Record<string, string> = {
   DEBENTURES: "Debêntures",
   TREASURY: "Tesouro Direto",
   ETF: "ETF",
+  FII: "FII",
   OTHER: "Outros",
 };
 
 const TABS: { value: string; label: string; type?: string }[] = [
   { value: "CDB", label: "CDB", type: "CDB" },
   { value: "ETF", label: "ETF", type: "ETF" },
+  { value: "FII", label: "FII", type: "FII" },
   { value: "TREASURY", label: "Tesouro Direto", type: "TREASURY" },
   { value: "TOTAL", label: "Total" },
 ];
@@ -201,7 +203,7 @@ export default function InvestmentGrowthCharts() {
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="TOTAL" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             {TABS.map((tab) => (
               <TabsTrigger key={tab.value} value={tab.value}>
                 {tab.label}

@@ -14,7 +14,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     amount: z.number().positive().optional(),
     net_value: z.number().optional(),
     gross_yield: z.number().optional(),
-    investment_type: z.enum(['STOCKS', 'FUNDS', 'CRYPTO', 'SAVINGS', 'CDB', 'LCI_LCA', 'DEBENTURES', 'TREASURY', 'ETF', 'OTHER']).optional(),
+    investment_type: z.enum(['STOCKS', 'FUNDS', 'CRYPTO', 'SAVINGS', 'CDB', 'LCI_LCA', 'DEBENTURES', 'TREASURY', 'ETF', 'FII', 'OTHER']).optional(),
     category: z.string().optional(),
     date: z.string().optional().transform((str) => str && str.length > 0 ? new Date(str + "T12:00:00Z") : undefined),
     purchase_date: z.string().optional().transform((str) => str && str.length > 0 ? new Date(str + "T12:00:00Z") : undefined),

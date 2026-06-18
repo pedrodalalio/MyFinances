@@ -166,7 +166,7 @@ export class GetFinancialOverviewService {
       (sum, investment) => {
         const amount = Number(investment.amount)
         const qty = investment.quantity ? Number(investment.quantity) : 1
-        return sum + (investment.investment_type === 'ETF' ? amount * qty : amount)
+        return sum + (investment.investment_type === 'ETF' || investment.investment_type === 'FII' ? amount * qty : amount)
       },
       0,
     );
@@ -315,11 +315,11 @@ export class GetFinancialOverviewService {
       + activeRecurring.reduce((s, p) => s + Number(p.installment_amount), 0);
     const expensesTotal = prevExpenses.reduce((s, e) => s + Number(e.amount), 0);
     const incomesTotal = prevIncomes.reduce((s, i) => s + Number(i.amount), 0);
-    // Mesma regra do confirm-month: ETF entra como valor unitário x quantidade.
+    // Mesma regra do confirm-month: ETF e FII entram como valor unitário x quantidade.
     const investmentsTotal = prevInvestments.reduce((s, i) => {
       const amount = Number(i.amount);
       const qty = i.quantity ? Number(i.quantity) : 1;
-      return s + (i.investment_type === 'ETF' ? amount * qty : amount);
+      return s + (i.investment_type === 'ETF' || i.investment_type === 'FII' ? amount * qty : amount);
     }, 0);
     const taxesTotal = prevTaxes.reduce((s, t) => s + Number(t.amount), 0);
 

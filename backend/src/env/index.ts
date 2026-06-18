@@ -7,6 +7,7 @@ const envSchema = z
     JWT_SECRET: z.string(),
     PORT: z.coerce.number().default(3333),
     FRONTEND_URL: z.string().url().optional(),
+    BRAPI_TOKEN: z.string().optional(),
   })
   .refine((env) => env.NODE_ENV !== "production" || !!env.FRONTEND_URL, {
     message:

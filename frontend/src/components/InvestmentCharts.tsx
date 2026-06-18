@@ -32,8 +32,11 @@ interface Investment {
   purchase_date?: string;
 }
 
+// ETF e FII são cotados por unidade: valor efetivo = preço da cota × quantidade.
+const isUnitPricedType = (type: string): boolean => type === "ETF" || type === "FII";
+
 const getEffectiveAmount = (inv: Investment): number => {
-  if (inv.investment_type === "ETF" && inv.quantity) {
+  if (isUnitPricedType(inv.investment_type) && inv.quantity) {
     return inv.amount * inv.quantity;
   }
   return inv.amount;
@@ -70,6 +73,7 @@ const getInvestmentTypeLabel = (type: string): string => {
     CRYPTO: "Crypto",
     DEBENTURES: "Debêntures",
     ETF: "ETF",
+    FII: "FII",
     OTHER: "Outros"
   };
   return labels[type] || type;
@@ -99,7 +103,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   const [viewMode, setViewMode] = useState<"type" | "rate" | "individual">("rate");
 
   // Quando muda o filtro, ajustar o viewMode automaticamente
-  const effectiveViewMode = selectedFilter === "all" ? "rate" : (selectedFilter === "ETF" && viewMode === "rate" ? "type" : viewMode);
+  const effectiveViewMode = selectedFilter === "all" ? "rate" : (isUnitPricedType(selectedFilter) && viewMode === "rate" ? "type" : viewMode);
 
   // Filtrar investimentos baseado na seleção
   const filteredInvestments = React.useMemo(() => {
@@ -110,10 +114,10 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
   // Dados para distribuição
   const distributionData = React.useMemo(() => {
     if (effectiveViewMode === "type") {
-      const isETFFilter = selectedFilter === "ETF";
+      const isTickerFilter = isUnitPricedType(selectedFilter);
       const typeMap = new Map<string, number>();
       filteredInvestments.forEach(investment => {
-        const key = isETFFilter
+        const key = isTickerFilter
           ? (investment.ticker || investment.name)
           : getInvestmentTypeLabel(investment.investment_type);
         const effectiveAmount = getEffectiveAmount(investment);
@@ -324,7 +328,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
           >
             Por Tipo
           </Button>
-          {selectedFilter !== "ETF" && (
+          {!isUnitPricedType(selectedFilter) && (
             <Button
               variant={viewMode === "rate" ? "default" : "outline"}
               size="sm"

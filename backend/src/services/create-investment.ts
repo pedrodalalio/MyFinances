@@ -79,7 +79,7 @@ export class CreateInvestmentService {
     })
 
     // Criar snapshot inicial para o histórico
-    const effectiveAmount = investmentType === 'ETF' && quantity
+    const effectiveAmount = (investmentType === 'ETF' || investmentType === 'FII') && quantity
       ? amount * quantity
       : amount
     await prisma.investmentSnapshot.create({

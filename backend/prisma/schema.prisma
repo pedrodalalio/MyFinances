@@ -68,6 +68,7 @@ enum InvestmentType {
   DEBENTURES
   TREASURY
   ETF
+  FII
   OTHER
 }
 

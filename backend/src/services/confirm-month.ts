@@ -101,7 +101,7 @@ export class ConfirmMonthService {
       (sum, investment) => {
         const amount = Number(investment.amount)
         const qty = investment.quantity ? Number(investment.quantity) : 1
-        return sum + (investment.investment_type === 'ETF' ? amount * qty : amount)
+        return sum + (investment.investment_type === 'ETF' || investment.investment_type === 'FII' ? amount * qty : amount)
       },
       0,
     );

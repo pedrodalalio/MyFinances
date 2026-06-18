@@ -73,7 +73,7 @@ export class GetInvestmentPortfolioUnifiedService {
 
   private getEffectiveAmount(inv: Investment): number {
     const amount = Number(inv.amount || 0)
-    if (inv.investment_type === 'ETF' && inv.quantity) {
+    if ((inv.investment_type === 'ETF' || inv.investment_type === 'FII') && inv.quantity) {
       return amount * Number(inv.quantity)
     }
     return amount

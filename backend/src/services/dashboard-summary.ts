@@ -100,7 +100,7 @@ export class DashboardSummaryService {
       (sum, investment) => {
         const amount = Number(investment.amount)
         const qty = investment.quantity ? Number(investment.quantity) : 1
-        const effectiveAmount = investment.investment_type === 'ETF' ? amount * qty : amount
+        const effectiveAmount = investment.investment_type === 'ETF' || investment.investment_type === 'FII' ? amount * qty : amount
         return sum + Number(investment.gross_yield || effectiveAmount)
       },
       0,
