@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -17,6 +17,7 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Upload,
   Save,
   Loader2,
   AlertTriangle,
@@ -298,6 +299,8 @@ const UnifiedInvestmentsPage = () => {
   const [savingYields, setSavingYields] = useState(false);
   const [loadingYields, setLoadingYields] = useState(false);
   const [fetchingQuotes, setFetchingQuotes] = useState(false);
+  const [importingStatement, setImportingStatement] = useState(false);
+  const statementInputRef = useRef<HTMLInputElement>(null);
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
   const [isYieldSummaryOpen, setIsYieldSummaryOpen] = useState(false);
   const [yieldChanges, setYieldChanges] = useState<YieldChange[]>([]);
@@ -755,6 +758,68 @@ const UnifiedInvestmentsPage = () => {
       console.error("Erro ao buscar cotações:", error);
     } finally {
       setFetchingQuotes(false);
+    }
+  };
+
+  // Importa um extrato de renda fixa (PDF) e preenche os campos de bruto/líquido
+  // dos CDBs (e afins) já cadastrados que baterem com os títulos do extrato.
+  // Não salva: o usuário confere e clica em Salvar, como no "Atualizar cotações".
+  const handleImportStatement = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // permite reenviar o mesmo arquivo
+    if (!file) return;
+
+    try {
+      setImportingStatement(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await api.post("/investments/import-statement", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      const matched: Array<{
+        investmentId: string;
+        newGross: number;
+        newNet: number;
+      }> = response.data.matched ?? [];
+      const unmatched: Array<unknown> = response.data.unmatched ?? [];
+
+      if (matched.length > 0) {
+        setYieldUpdates((prev) => {
+          const next = { ...prev };
+          for (const m of matched) {
+            next[m.investmentId] = {
+              gross_yield: m.newGross.toFixed(2),
+              net_value: m.newNet.toFixed(2),
+            };
+          }
+          return next;
+        });
+        toast.success(
+          `${matched.length} investimento(s) atualizado(s) pelo extrato. Confira e clique em Salvar.`
+        );
+      } else {
+        toast.info(
+          "Nenhum título do extrato bateu com os investimentos cadastrados. Confira data de aplicação e valor aplicado."
+        );
+      }
+
+      if (unmatched.length > 0) {
+        toast.warning(
+          `${unmatched.length} título(s) do extrato sem investimento correspondente no app.`
+        );
+      }
+    } catch (error: unknown) {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ?? "Não foi possível ler o extrato. Verifique o PDF.";
+      toast.error(message);
+      console.error("Erro ao importar extrato:", error);
+    } finally {
+      setImportingStatement(false);
     }
   };
 
@@ -2041,6 +2106,25 @@ const UnifiedInvestmentsPage = () => {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Atualizar Rendimentos dos Investimentos</CardTitle>
                 <div className="flex items-center gap-2">
+                  <input
+                    ref={statementInputRef}
+                    type="file"
+                    accept=".pdf"
+                    className="hidden"
+                    onChange={handleImportStatement}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => statementInputRef.current?.click()}
+                    disabled={importingStatement || loadingYields}
+                  >
+                    {importingStatement ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-2" />
+                    )}
+                    Importar extrato (PDF)
+                  </Button>
                   <Button
                     variant="outline"
                     onClick={handleFetchQuotes}
@@ -2068,7 +2152,9 @@ const UnifiedInvestmentsPage = () => {
                 Atualize os valores brutos e líquidos de cada investimento conforme o app do banco.
                 Os valores devem ser o <strong>valor total atual</strong> (aplicado + rendimento).
                 Use <strong>Atualizar cotações</strong> para buscar os preços de ações, FIIs e ETFs
-                automaticamente (BRAPI) nos ativos com ticker e quantidade cadastrados. Confira e clique em Salvar.
+                automaticamente (BRAPI) nos ativos com ticker e quantidade cadastrados. Use
+                {" "}<strong>Importar extrato (PDF)</strong> para preencher bruto/líquido dos CDBs e
+                títulos de renda fixa a partir do extrato do banco. Confira e clique em Salvar.
               </p>
             </CardHeader>
             <CardContent>

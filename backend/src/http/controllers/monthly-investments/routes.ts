@@ -9,6 +9,7 @@ import { getInvestmentHistory } from "./get-history"
 import { listMatured } from "./list-matured"
 import { redeem } from "./redeem"
 import { getQuotes } from "./get-quotes"
+import { importStatement } from "./import-statement"
 
 export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
   app.addHook('onRequest', verifyJWT)
@@ -25,4 +26,5 @@ export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
   app.get('/investments/matured', listMatured)
   app.post('/investments/:id/redeem', redeem)
   app.get('/investments/quotes', getQuotes)
+  app.post('/investments/import-statement', importStatement)
 }
