@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, Wallet, Trash2, Edit } from "lucide-react";
+import { Plus, Wallet, Trash2, Edit, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/utils/api";
 import { refreshBalanceSummary } from "@/components/BalanceSummary";
@@ -161,6 +161,7 @@ interface Expense {
 
 const ExpensesPage = () => {
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [paidKeys, setPaidKeys] = useState<string[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -219,11 +220,45 @@ const ExpensesPage = () => {
   const loadExpenses = async () => {
     try {
       const month = selectedMonth.toString().padStart(2, "0");
-      const response = await api.get(`/expenses/${month}/${selectedYear}`);
-      setExpenses(response.data.expenses || []);
+      const [expensesResponse, checksResponse] = await Promise.all([
+        api.get(`/expenses/${month}/${selectedYear}`),
+        api.get(`/payment-checks/${month}/${selectedYear}`),
+      ]);
+      setExpenses(expensesResponse.data.expenses || []);
+      setPaidKeys(checksResponse.data.checks || []);
     } catch (error) {
       console.error("Erro ao carregar gastos:", error);
       toast.error("Não foi possível carregar os gastos. Tente novamente.");
+    }
+  };
+
+  // Checklist de pagamentos: a chave usa o id do template do gasto fixo, então
+  // a marcação sobrevive à navegação entre meses (cada mês tem seus checks).
+  const paymentKey = (expense: Expense) => `rec_${expense.recurring_id}`;
+
+  const isPaid = (expense: Expense) => paidKeys.includes(paymentKey(expense));
+
+  const togglePaid = async (expense: Expense) => {
+    const key = paymentKey(expense);
+    const paid = !paidKeys.includes(key);
+
+    setPaidKeys((keys) =>
+      paid ? [...keys, key] : keys.filter((k) => k !== key),
+    );
+
+    try {
+      await api.put("/payment-checks", {
+        item_key: key,
+        month: selectedMonth.toString().padStart(2, "0"),
+        year: selectedYear,
+        paid,
+      });
+    } catch (error) {
+      console.error("Erro ao marcar pagamento:", error);
+      toast.error("Não foi possível salvar a marcação de pagamento.");
+      setPaidKeys((keys) =>
+        paid ? keys.filter((k) => k !== key) : [...keys, key],
+      );
     }
   };
 
@@ -752,6 +787,30 @@ const ExpensesPage = () => {
                     )}
                   </div>
                   <div className="flex gap-1">
+                    {expense.is_recurring && expense.recurring_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePaid(expense)}
+                        title={
+                          isPaid(expense)
+                            ? "Pagamento feito neste mês (clique para desmarcar)"
+                            : "Marcar como pago neste mês"
+                        }
+                        className={
+                          isPaid(expense)
+                            ? "text-[color:var(--success)] hover:bg-[color:var(--success)]/10"
+                            : "text-muted-foreground hover:bg-accent"
+                        }
+                      >
+                        {isPaid(expense) ? (
+                          <CheckCircle2 className="mr-1 h-4 w-4" />
+                        ) : (
+                          <Circle className="mr-1 h-4 w-4" />
+                        )}
+                        Pago
+                      </Button>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

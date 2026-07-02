@@ -90,6 +90,7 @@ model User {
   investments Investment[]
   taxes Tax[]
   imports Import[]
+  paymentChecks PaymentCheck[]
 
   @@map("users")
 }
@@ -222,6 +223,24 @@ model Expense {
 
   @@index([user_id, month, year])
   @@map("expenses")
+}
+
+// Checklist de pagamentos do mês: marca itens recorrentes (gastos fixos,
+// impostos) como pagos. item_key = "rec_<recurringExpenseId>" | "tax_<taxId>".
+// A linha existir = pago; desmarcar remove a linha.
+model PaymentCheck {
+  id         String   @id @default(uuid())
+  item_key   String
+  month      String
+  year       Int
+  user_id    String
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, item_key, month, year])
+  @@index([user_id, month, year])
+  @@map("payment_checks")
 }
 
 model RecurringExpense {

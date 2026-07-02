@@ -7,6 +7,8 @@ import {
   PieChart,
   AlertTriangle,
   CheckCircle,
+  CheckCircle2,
+  Circle,
   Plus,
   Edit3,
   Trash2,
@@ -27,6 +29,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Form,
   FormControl,
@@ -93,6 +105,13 @@ const addMoneySchema = z.object({
 
 type AddMoneyFormValues = z.infer<typeof addMoneySchema>;
 
+// Item do checklist de pagamentos do mês (gastos fixos + impostos)
+interface ChecklistItem {
+  key: string;
+  label: string;
+  amount: number;
+}
+
 export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   month,
   year,
@@ -103,6 +122,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isAddMoneyDialogOpen, setIsAddMoneyDialogOpen] = useState(false);
   const [isEditMoneyDialogOpen, setIsEditMoneyDialogOpen] = useState(false);
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+  const [paidKeys, setPaidKeys] = useState<string[]>([]);
+  const [isPendingDialogOpen, setIsPendingDialogOpen] = useState(false);
   const addMoneyForm = useForm<AddMoneyFormValues>({
     resolver: zodResolver(addMoneySchema),
     defaultValues: {
@@ -119,7 +141,78 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
 
   useEffect(() => {
     refreshOverview();
+    loadChecklist();
   }, [month, year]);
+
+  // Checklist de pagamentos do mês: gastos fixos + impostos, com marcação
+  // manual de "pago" — evita fechar o mês esquecendo algum pagamento mensal.
+  const loadChecklist = async () => {
+    try {
+      const [expensesRes, taxesRes, checksRes] = await Promise.all([
+        api.get(`/expenses/${month}/${year}`),
+        api.get(`/taxes/${month}/${year}`),
+        api.get(`/payment-checks/${month}/${year}`),
+      ]);
+
+      const recurringItems: ChecklistItem[] = (
+        expensesRes.data.expenses || []
+      )
+        .filter(
+          (expense: { is_recurring?: boolean; recurring_id?: string }) =>
+            expense.is_recurring && expense.recurring_id,
+        )
+        .map(
+          (expense: {
+            recurring_id: string;
+            name: string;
+            amount: string;
+          }) => ({
+            key: `rec_${expense.recurring_id}`,
+            label: expense.name,
+            amount: parseFloat(expense.amount),
+          }),
+        );
+
+      const taxItems: ChecklistItem[] = (taxesRes.data.taxes || []).map(
+        (tax: { id: string; tax_type: string; amount: string }) => ({
+          key: `tax_${tax.id}`,
+          label: `Imposto ${tax.tax_type}`,
+          amount: parseFloat(tax.amount),
+        }),
+      );
+
+      setChecklistItems([...recurringItems, ...taxItems]);
+      setPaidKeys(checksRes.data.checks || []);
+    } catch (error) {
+      console.error("Erro ao carregar checklist de pagamentos:", error);
+    }
+  };
+
+  const togglePaid = async (key: string) => {
+    const paid = !paidKeys.includes(key);
+
+    setPaidKeys((keys) =>
+      paid ? [...keys, key] : keys.filter((k) => k !== key),
+    );
+
+    try {
+      await api.put("/payment-checks", {
+        item_key: key,
+        month,
+        year,
+        paid,
+      });
+    } catch (error) {
+      console.error("Erro ao marcar pagamento:", error);
+      setPaidKeys((keys) =>
+        paid ? keys.filter((k) => k !== key) : [...keys, key],
+      );
+    }
+  };
+
+  const pendingItems = checklistItems.filter(
+    (item) => !paidKeys.includes(item.key),
+  );
 
   const refreshOverview = async () => {
     try {
@@ -186,13 +279,23 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
     }
   };
 
-  const handleConfirmMonth = async () => {
+  const doConfirmMonth = async () => {
     try {
       await api.post(`/financial-data/confirm-month/${month}/${year}`);
       await refreshOverview();
     } catch (error) {
       console.error("Erro ao confirmar mês:", error);
     }
+  };
+
+  // Se ainda há pagamentos não marcados como pagos, pede confirmação antes
+  // de fechar o mês — é o lembrete contra pagamentos esquecidos.
+  const handleConfirmMonth = async () => {
+    if (pendingItems.length > 0) {
+      setIsPendingDialogOpen(true);
+      return;
+    }
+    await doConfirmMonth();
   };
 
 
@@ -593,6 +696,71 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
             )}
 
+            {/* Checklist de pagamentos do mês */}
+            {checklistItems.length > 0 && !financial_data.is_confirmed && (
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="font-medium">Pagamentos do Mês</h4>
+                  <span
+                    className={`text-xs font-medium ${
+                      pendingItems.length === 0
+                        ? "text-[color:var(--success)]"
+                        : "text-[color:var(--warning)]"
+                    }`}
+                  >
+                    {checklistItems.length - pendingItems.length}/
+                    {checklistItems.length} pagos
+                  </span>
+                </div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Marque cada gasto fixo e imposto conforme for pagando
+                </p>
+                <div className="space-y-1">
+                  {checklistItems.map((item) => {
+                    const paid = paidKeys.includes(item.key);
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => togglePaid(item.key)}
+                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent"
+                      >
+                        <span className="flex items-center gap-2">
+                          {paid ? (
+                            <CheckCircle2 className="h-4 w-4 text-[color:var(--success)]" />
+                          ) : (
+                            <Circle className="h-4 w-4 text-muted-foreground" />
+                          )}
+                          <span
+                            className={
+                              paid ? "text-muted-foreground line-through" : ""
+                            }
+                          >
+                            {item.label}
+                          </span>
+                        </span>
+                        <span
+                          className={`font-medium ${
+                            paid ? "text-muted-foreground" : ""
+                          }`}
+                        >
+                          {formatCurrency(item.amount)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {pendingItems.length > 0 && (
+                  <p className="mt-2 text-xs text-[color:var(--warning)]">
+                    {pendingItems.length}{" "}
+                    {pendingItems.length === 1
+                      ? "pagamento pendente"
+                      : "pagamentos pendentes"}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Botão Confirmar Mês */}
             <div className="pt-4 border-t">
               <div className="flex flex-col gap-2">
@@ -751,6 +919,50 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
         </DialogContent>
       </Dialog>
 
+      {/* Aviso de pagamentos pendentes ao fechar o mês */}
+      <AlertDialog
+        open={isPendingDialogOpen}
+        onOpenChange={setIsPendingDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Ainda há pagamentos não confirmados
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div>
+                <p className="mb-2">
+                  Você não marcou {pendingItems.length === 1
+                    ? "este pagamento"
+                    : "estes pagamentos"}{" "}
+                  como pago{pendingItems.length === 1 ? "" : "s"} neste mês:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  {pendingItems.map((item) => (
+                    <li key={item.key}>
+                      {item.label} — {formatCurrency(item.amount)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2">
+                  Confira se algum deles ficou esquecido antes de fechar o mês.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar e conferir</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setIsPendingDialogOpen(false);
+                doConfirmMonth();
+              }}
+            >
+              Fechar mês assim mesmo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

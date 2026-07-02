@@ -30,6 +30,8 @@ import { refreshBalanceSummary } from "@/components/BalanceSummary";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
+import { FiiIncomePanel } from "@/components/FiiIncomePanel";
+import { FiiSimulator } from "@/components/FiiSimulator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -1673,7 +1675,7 @@ const UnifiedInvestmentsPage = () => {
 
       {/* Tabs para separar visualizações */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="portfolio" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" />
             Portfolio
@@ -1681,6 +1683,14 @@ const UnifiedInvestmentsPage = () => {
           <TabsTrigger value="yields" className="flex items-center gap-2">
             <RefreshCw className="h-4 w-4" />
             Rendimentos
+          </TabsTrigger>
+          <TabsTrigger value="proventos" className="flex items-center gap-2">
+            <Coins className="h-4 w-4" />
+            Proventos FII
+          </TabsTrigger>
+          <TabsTrigger value="simulador" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            Simulador
           </TabsTrigger>
         </TabsList>
 
@@ -2443,6 +2453,14 @@ const UnifiedInvestmentsPage = () => {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="proventos" className="space-y-4">
+          <FiiIncomePanel />
+        </TabsContent>
+
+        <TabsContent value="simulador" className="space-y-4">
+          <FiiSimulator />
         </TabsContent>
 
       </Tabs>

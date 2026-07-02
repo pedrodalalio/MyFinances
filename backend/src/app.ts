@@ -14,6 +14,7 @@ import { monthlyInvestmentsRoutes } from "./http/controllers/monthly-investments
 import { taxesRoutes } from "./http/controllers/taxes/routes";
 import { importsRoutes } from "./http/controllers/imports/routes";
 import { dashboardRoutes } from "./http/controllers/dashboard/routes";
+import { paymentChecksRoutes } from "./http/controllers/payment-checks/routes";
 import { ZodError } from "zod";
 import { env } from "./env";
 import fastifyJwt from "@fastify/jwt";
@@ -71,6 +72,7 @@ app.register(monthlyInvestmentsRoutes);
 app.register(taxesRoutes);
 app.register(importsRoutes);
 app.register(dashboardRoutes);
+app.register(paymentChecksRoutes);
 
 app.setErrorHandler((error, _, reply) => {
   if (error instanceof ZodError) {
