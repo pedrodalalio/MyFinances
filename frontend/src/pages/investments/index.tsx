@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Coins, PieChart, Plus, RefreshCw, TrendingUp } from "lucide-react";
+import { Coins, PieChart, Plus, RefreshCw, TrendingUp, Trophy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import { FiiIncomePanel } from "@/components/FiiIncomePanel";
+import { FiiRankingPanel } from "@/components/FiiRankingPanel";
 import { FiiSimulator } from "@/components/FiiSimulator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -79,7 +80,7 @@ const UnifiedInvestmentsPage = () => {
 
       {/* Tabs para separar visualizações */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="portfolio" className="flex items-center gap-2">
             <PieChart className="h-4 w-4" />
             Portfolio
@@ -91,6 +92,10 @@ const UnifiedInvestmentsPage = () => {
           <TabsTrigger value="proventos" className="flex items-center gap-2">
             <Coins className="h-4 w-4" />
             Proventos FII
+          </TabsTrigger>
+          <TabsTrigger value="ranking" className="flex items-center gap-2">
+            <Trophy className="h-4 w-4" />
+            Ranking FII
           </TabsTrigger>
           <TabsTrigger value="simulador" className="flex items-center gap-2">
             <TrendingUp className="h-4 w-4" />
@@ -112,6 +117,10 @@ const UnifiedInvestmentsPage = () => {
 
         <TabsContent value="proventos" className="space-y-4">
           <FiiIncomePanel />
+        </TabsContent>
+
+        <TabsContent value="ranking" className="space-y-4">
+          <FiiRankingPanel />
         </TabsContent>
 
         <TabsContent value="simulador" className="space-y-4">
