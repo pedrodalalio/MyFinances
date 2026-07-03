@@ -13,6 +13,7 @@ import {
   usePortfolioQuery,
 } from "../hooks/useInvestments";
 import { usePortfolioMetrics } from "../hooks/usePortfolioMetrics";
+import { CdiComparisonChart } from "./CdiComparisonChart";
 import { MaturedInvestmentsCard } from "./MaturedInvestmentsCard";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
 import { PortfolioGroupsCard } from "./PortfolioGroupsCard";
@@ -87,12 +88,15 @@ export function PortfolioTab({
 
           {/* Gráficos e Análises */}
           {filteredInvestments.length > 0 && (
-            <InvestmentCharts
-              investments={filteredInvestments}
-              selectedFilter={portfolioFilter}
-              periodLabel={PERIOD_LABEL[periodPreset]}
-              periodData={periodMetrics?.perInvestment ?? new Map()}
-            />
+            <>
+              <CdiComparisonChart filter={portfolioFilter} />
+              <InvestmentCharts
+                investments={filteredInvestments}
+                selectedFilter={portfolioFilter}
+                periodLabel={PERIOD_LABEL[periodPreset]}
+                periodData={periodMetrics?.perInvestment ?? new Map()}
+              />
+            </>
           )}
 
           {/* Listagem agrupada */}

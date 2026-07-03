@@ -160,6 +160,29 @@ export interface InvestmentHistory {
   history: InvestmentHistoryEntry[];
 }
 
+export interface CdiComparisonPoint {
+  date: string;
+  actual: number;
+  cdi: number;
+  invested: number;
+}
+
+export interface CdiComparisonSummary {
+  totalInvested: number;
+  currentValue: number;
+  cdiValue: number;
+  actualReturn: number;
+  cdiReturn: number;
+  actualReturnPct: number;
+  cdiReturnPct: number;
+  percentOfCdi: number | null;
+}
+
+export interface CdiComparison {
+  series: CdiComparisonPoint[];
+  summary: CdiComparisonSummary | null;
+}
+
 export type PeriodPreset = "30d" | "3m" | "6m" | "1y" | "all";
 
 export const PERIOD_LABEL: Record<PeriodPreset, string> = {

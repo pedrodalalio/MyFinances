@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/utils/api";
 import { invalidateFinancialData, queryKeys } from "@/lib/query";
-import type { InvestmentHistory, MaturedInvestment, Portfolio } from "../types";
+import type { CdiComparison, InvestmentHistory, MaturedInvestment, Portfolio } from "../types";
 
 export function usePortfolioQuery() {
   return useQuery({
@@ -34,12 +34,30 @@ export function useInvestmentHistoryQuery() {
   });
 }
 
+// Comparação do rendimento real com 100% do CDI (obedece o filtro de tipo).
+// A série do CDI vem do Banco Central via backend — muda no máximo 1x por dia,
+// então o staleTime pode ser generoso.
+export function useCdiComparisonQuery(filter: string) {
+  return useQuery({
+    queryKey: queryKeys.cdiComparison(filter),
+    queryFn: async (): Promise<CdiComparison> => {
+      const response = await api.get("/investments/cdi-comparison", {
+        params: filter !== "all" ? { type: filter } : {},
+      });
+      return response.data;
+    },
+    staleTime: 5 * 60_000,
+  });
+}
+
 // Invalida tudo que uma escrita em investimentos afeta: o histórico de
-// snapshots e os dados financeiros (saldo, portfólio e badge de vencidos).
+// snapshots, a comparação com CDI e os dados financeiros (saldo, portfólio
+// e badge de vencidos).
 function useInvalidateInvestments() {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: queryKeys.investmentHistory });
+    queryClient.invalidateQueries({ queryKey: ["cdi-comparison"] });
     invalidateFinancialData();
   };
 }

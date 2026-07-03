@@ -11,6 +11,7 @@ import { redeem } from "./redeem"
 import { getQuotes } from "./get-quotes"
 import { getFiiIncome } from "./get-fii-income"
 import { getFiiLookup } from "./get-fii-lookup"
+import { getCdiComparison } from "./get-cdi-comparison"
 import { importStatement } from "./import-statement"
 
 export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
@@ -30,5 +31,6 @@ export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
   app.get('/investments/quotes', getQuotes)
   app.get('/investments/fii-income', getFiiIncome)
   app.get('/investments/fii-lookup/:ticker', getFiiLookup)
+  app.get('/investments/cdi-comparison', getCdiComparison)
   app.post('/investments/import-statement', importStatement)
 }
