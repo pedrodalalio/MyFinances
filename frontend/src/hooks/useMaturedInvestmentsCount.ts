@@ -1,28 +1,15 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
 
 export default function useMaturedInvestmentsCount() {
-  const [count, setCount] = useState(0);
-
-  const fetchCount = async () => {
-    try {
+  const { data: count = 0 } = useQuery({
+    queryKey: queryKeys.maturedInvestments,
+    queryFn: async () => {
       const res = await api.get("/investments/matured");
-      setCount(res.data.investments?.length ?? 0);
-    } catch (err) {
-      console.error("Erro ao carregar vencidos:", err);
-    }
-  };
-
-  useEffect(() => {
-    fetchCount();
-    const handler = () => fetchCount();
-    window.addEventListener("matured-updated", handler);
-    window.addEventListener("balance-updated", handler);
-    return () => {
-      window.removeEventListener("matured-updated", handler);
-      window.removeEventListener("balance-updated", handler);
-    };
-  }, []);
+      return res.data.investments?.length ?? 0;
+    },
+  });
 
   return count;
 }

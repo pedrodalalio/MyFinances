@@ -18,26 +18,22 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
 
   const { name, description, amount, source, category, month, year, date } = createIncomeBodySchema.parse(request.body)
 
-  try {
-    const incomeRepository = new PrismaIncomeRepository()
-    const createIncomeService = new CreateIncomeService(incomeRepository)
+  const incomeRepository = new PrismaIncomeRepository()
+  const createIncomeService = new CreateIncomeService(incomeRepository)
 
-    const { income } = await createIncomeService.execute({
-      userId: request.user.sub,
-      name,
-      description,
-      amount,
-      source,
-      category,
-      month,
-      year,
-      date
-    })
+  const { income } = await createIncomeService.execute({
+    userId: request.user.sub,
+    name,
+    description,
+    amount,
+    source,
+    category,
+    month,
+    year,
+    date
+  })
 
-    return reply.status(201).send({
-      income
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(201).send({
+    income
+  })
 }

@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, ArrowDownLeft, Trash2, Edit } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { queryKeys, invalidateFinancialData } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -88,9 +91,7 @@ interface Income {
 }
 
 const IncomesPage = () => {
-  const [incomes, setIncomes] = useState<Income[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [editingIncome, setEditingIncome] = useState<Income | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
     const today = new Date();
@@ -117,8 +118,28 @@ const IncomesPage = () => {
 
   useEffect(() => {
     document.title = "Entradas | MyFinances";
-    loadIncomes();
-  }, [selectedPeriod]);
+  }, []);
+
+  const queryClient = useQueryClient();
+  const monthKey = selectedMonth.toString().padStart(2, "0");
+
+  const {
+    data: incomes = [],
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.incomes(monthKey, selectedYear),
+    queryFn: async () => {
+      const response = await api.get(`/incomes/${monthKey}/${selectedYear}`);
+      return (response.data.incomes || []) as Income[];
+    },
+  });
+
+  // Entradas mexem no saldo: invalida as keys do recurso e os dados financeiros globais
+  const invalidateIncomes = () => {
+    queryClient.invalidateQueries({ queryKey: ["incomes"] });
+    invalidateFinancialData();
+  };
 
   const form = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
@@ -132,48 +153,64 @@ const IncomesPage = () => {
     },
   });
 
-  const loadIncomes = async () => {
-    try {
-      const month = selectedMonth.toString().padStart(2, "0");
-      const response = await api.get(`/incomes/${month}/${selectedYear}`);
-      setIncomes(response.data.incomes || []);
-    } catch (error) {
-      console.error("Erro ao carregar entradas:", error);
-    }
+  const buildRequestBody = (values: IncomeFormValues) => {
+    const [yearStr, monthStr] = values.date.split("-");
+    return {
+      name: values.name,
+      description: values.description,
+      amount: Math.round(parseFloat(values.amount) * 100) / 100,
+      source: values.source,
+      category: values.category,
+      month: monthStr,
+      year: parseInt(yearStr),
+      date: values.date,
+    };
   };
 
-  const onSubmit = async (values: IncomeFormValues) => {
-    if (editingIncome) {
-      await updateIncome(values);
-    } else {
-      await createIncome(values);
-    }
-  };
-
-  const createIncome = async (values: IncomeFormValues) => {
-    setLoading(true);
-    try {
-      const [yearStr, monthStr] = values.date.split("-");
-      const requestBody = {
-        name: values.name,
-        description: values.description,
-        amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        source: values.source,
-        category: values.category,
-        month: monthStr,
-        year: parseInt(yearStr),
-        date: values.date,
-      };
-
-      await api.post("/incomes", requestBody);
+  const createMutation = useMutation({
+    mutationFn: (values: IncomeFormValues) =>
+      api.post("/incomes", buildRequestBody(values)),
+    onSuccess: () => {
       setIsDialogOpen(false);
       form.reset();
-      loadIncomes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao criar entrada:", error);
-    } finally {
-      setLoading(false);
+      invalidateIncomes();
+    },
+    onError: () => {
+      toast.error("Erro ao criar entrada.");
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: IncomeFormValues }) =>
+      api.put(`/incomes/${id}`, buildRequestBody(values)),
+    onSuccess: () => {
+      setIsDialogOpen(false);
+      setEditingIncome(null);
+      form.reset();
+      invalidateIncomes();
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar entrada.");
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/incomes/${id}`),
+    onSuccess: () => {
+      invalidateIncomes();
+    },
+    onError: () => {
+      toast.error("Erro ao deletar entrada.");
+    },
+  });
+
+  const loading = createMutation.isPending || updateMutation.isPending;
+
+  const onSubmit = (values: IncomeFormValues) => {
+    if (editingIncome) {
+      updateMutation.mutate({ id: editingIncome.id, values });
+    } else {
+      createMutation.mutate(values);
     }
   };
 
@@ -190,44 +227,8 @@ const IncomesPage = () => {
     setIsDialogOpen(true);
   };
 
-  const updateIncome = async (values: IncomeFormValues) => {
-    if (!editingIncome) return;
-
-    setLoading(true);
-    try {
-      const [yearStr, monthStr] = values.date.split("-");
-      const requestBody = {
-        name: values.name,
-        description: values.description,
-        amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        source: values.source,
-        category: values.category,
-        month: monthStr,
-        year: parseInt(yearStr),
-        date: values.date,
-      };
-
-      await api.put(`/incomes/${editingIncome.id}`, requestBody);
-      setIsDialogOpen(false);
-      setEditingIncome(null);
-      form.reset();
-      loadIncomes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar entrada:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteIncome = async (id: string) => {
-    try {
-      await api.delete(`/incomes/${id}`);
-      loadIncomes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao deletar entrada:", error);
-    }
+  const deleteIncome = (id: string) => {
+    deleteMutation.mutate(id);
   };
 
   const totalIncomes = incomes.reduce(
@@ -435,8 +436,10 @@ const IncomesPage = () => {
         </div>
       </div>
 
+      {isError && <QueryError onRetry={() => refetch()} />}
+
       {/* Total de entradas do mês */}
-      {incomes.length > 0 && (
+      {!isError && incomes.length > 0 && (
         <Card className="border-[color:var(--success)]/20 bg-[color:var(--success)]/[0.03]">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2.5">
@@ -459,6 +462,7 @@ const IncomesPage = () => {
         </Card>
       )}
 
+      {!isError && (
       <div className="grid gap-4">
         {incomes.length === 0 ? (
           <Card>
@@ -549,6 +553,7 @@ const IncomesPage = () => {
           ))
         )}
       </div>
+      )}
     </div>
   );
 };

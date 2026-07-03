@@ -13,22 +13,18 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
 
   const { month, year, mainIncome, checkingAccount } = createFinancialDataBodySchema.parse(request.body)
 
-  try {
-    const financialDataRepository = new PrismaFinancialDataRepository()
-    const createFinancialDataService = new CreateFinancialDataService(financialDataRepository)
+  const financialDataRepository = new PrismaFinancialDataRepository()
+  const createFinancialDataService = new CreateFinancialDataService(financialDataRepository)
 
-    const { financialData } = await createFinancialDataService.execute({
-      userId: request.user.sub,
-      month,
-      year,
-      mainIncome,
-      checkingAccount
-    })
+  const { financialData } = await createFinancialDataService.execute({
+    userId: request.user.sub,
+    month,
+    year,
+    mainIncome,
+    checkingAccount
+  })
 
-    return reply.status(201).send({
-      financialData
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(201).send({
+    financialData
+  })
 }

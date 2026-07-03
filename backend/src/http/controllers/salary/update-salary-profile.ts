@@ -17,17 +17,13 @@ export async function updateSalaryProfile(request: FastifyRequest, reply: Fastif
   const { id } = paramsSchema.parse(request.params)
   const data = bodySchema.parse(request.body)
 
-  try {
-    const service = makeUpdateSalaryProfileService()
+  const service = makeUpdateSalaryProfileService()
 
-    const salaryProfile = await service.execute({
-      id,
-      ...data,
-      userId: request.user.sub,
-    })
+  const salaryProfile = await service.execute({
+    id,
+    ...data,
+    userId: request.user.sub,
+  })
 
-    return reply.status(200).send(salaryProfile)
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send(salaryProfile)
 }

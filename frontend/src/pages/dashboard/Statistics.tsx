@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { StatCard } from "@/components/StatCard";
@@ -9,7 +9,9 @@ import {
   Wallet,
   CreditCard,
 } from "lucide-react";
-import { apiService } from "@/services/api";
+import { apiService } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import useAuth from "@hooks/useAuth";
 
@@ -38,19 +40,18 @@ const formatPercentage = (value: number | null | undefined): string => {
 
 const Statistics = () => {
   const { user } = useAuth();
-  const [summary, setSummary] = useState<DashboardSummary | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDashboardSummary();
-  }, []);
-
-  const loadDashboardSummary = async () => {
-    try {
-      setLoading(true);
+  const {
+    data: summary,
+    isPending,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.dashboardSummary(),
+    queryFn: async (): Promise<DashboardSummary> => {
       const data = await apiService.getDashboardSummary();
 
-      setSummary({
+      return {
         ...data,
         currentBalance: Number(data.currentBalance) || 0,
         monthlyExpenses: Number(data.monthlyExpenses) || 0,
@@ -59,15 +60,11 @@ const Statistics = () => {
         salary: Number(data.salary) || 0,
         totalCreditCardInstallments:
           Number(data.totalCreditCardInstallments) || 0,
-      });
-    } catch (error) {
-      console.error("Erro ao carregar resumo do dashboard:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      };
+    },
+  });
 
-  if (loading) {
+  if (isPending) {
     return (
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -85,6 +82,10 @@ const Statistics = () => {
         </div>
       </div>
     );
+  }
+
+  if (isError) {
+    return <QueryError onRetry={() => refetch()} />;
   }
 
   if (!summary) return null;

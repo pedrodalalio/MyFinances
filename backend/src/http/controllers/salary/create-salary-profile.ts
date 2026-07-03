@@ -12,16 +12,12 @@ export async function createSalaryProfile(request: FastifyRequest, reply: Fastif
 
   const data = createSalaryProfileBodySchema.parse(request.body)
 
-  try {
-    const createSalaryProfileService = makeCreateSalaryProfileService()
+  const createSalaryProfileService = makeCreateSalaryProfileService()
 
-    const salaryProfile = await createSalaryProfileService.execute({
-      ...data,
-      userId: request.user.sub
-    })
+  const salaryProfile = await createSalaryProfileService.execute({
+    ...data,
+    userId: request.user.sub
+  })
 
-    return reply.status(201).send(salaryProfile)
-  } catch (error) {
-    throw error
-  }
+  return reply.status(201).send(salaryProfile)
 }

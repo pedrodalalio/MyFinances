@@ -18,32 +18,28 @@ export async function updateInstallment(request: FastifyRequest, reply: FastifyR
   const { installmentId } = updateInstallmentParamsSchema.parse(request.params)
   const { installment_amount } = updateInstallmentBodySchema.parse(request.body)
 
-  try {
-    const creditCardInstallmentsRepository = new PrismaCreditCardInstallmentsRepository()
-    const creditCardPurchasesRepository = new PrismaCreditCardPurchasesRepository()
-    const financialDataRepository = new PrismaFinancialDataRepository()
+  const creditCardInstallmentsRepository = new PrismaCreditCardInstallmentsRepository()
+  const creditCardPurchasesRepository = new PrismaCreditCardPurchasesRepository()
+  const financialDataRepository = new PrismaFinancialDataRepository()
 
-    const updateFinancialDataCreditCardSubtotalService = new UpdateFinancialDataCreditCardSubtotalService(
-      creditCardInstallmentsRepository,
-      creditCardPurchasesRepository,
-      financialDataRepository
-    )
+  const updateFinancialDataCreditCardSubtotalService = new UpdateFinancialDataCreditCardSubtotalService(
+    creditCardInstallmentsRepository,
+    creditCardPurchasesRepository,
+    financialDataRepository
+  )
 
-    const updateInstallmentService = new UpdateInstallmentService(
-      creditCardInstallmentsRepository,
-      updateFinancialDataCreditCardSubtotalService
-    )
+  const updateInstallmentService = new UpdateInstallmentService(
+    creditCardInstallmentsRepository,
+    updateFinancialDataCreditCardSubtotalService
+  )
 
-    const { installment } = await updateInstallmentService.execute({
-      installmentId,
-      userId: request.user.sub,
-      installmentAmount: installment_amount
-    })
+  const { installment } = await updateInstallmentService.execute({
+    installmentId,
+    userId: request.user.sub,
+    installmentAmount: installment_amount
+  })
 
-    return reply.status(200).send({
-      installment
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    installment
+  })
 }

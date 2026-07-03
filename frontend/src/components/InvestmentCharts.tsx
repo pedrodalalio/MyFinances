@@ -10,8 +10,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  LineChart,
-  Line,
   Legend,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -375,12 +373,12 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ percentage }) => percentage > 5 ? `${percentage.toFixed(1)}%` : ''}
+                  label={({ percentage }) => Number(percentage) > 5 ? `${Number(percentage).toFixed(1)}%` : ''}
                   outerRadius={effectiveViewMode === "type" ? 80 : 60}
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  {distributionDataWithPercentage.map((entry, index) => (
+                  {distributionDataWithPercentage.map((_, index) => (
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
@@ -388,7 +386,7 @@ export const InvestmentCharts: React.FC<InvestmentChartsProps> = ({
                 <Legend
                   verticalAlign="bottom"
                   height={effectiveViewMode === "type" ? 80 : 120}
-                  formatter={(value: string, entry: any) => {
+                  formatter={(value: string) => {
                     const data = distributionDataWithPercentage.find(item => item.name === value);
                     return `${data?.fullName || value}`;
                   }}

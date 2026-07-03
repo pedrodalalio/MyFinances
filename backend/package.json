@@ -1,7 +1,7 @@
 {
-  "name": "3---api-solid",
+  "name": "myfinances-backend",
   "version": "1.0.0",
-  "description": "GymPass style app",
+  "description": "API do MyFinances",
   "main": "index.js",
   "type": "module",
   "scripts": {

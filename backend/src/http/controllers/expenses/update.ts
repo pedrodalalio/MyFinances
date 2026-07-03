@@ -23,21 +23,17 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
   const { id } = updateExpenseParamsSchema.parse(request.params)
   const updateData = updateExpenseBodySchema.parse(request.body)
 
-  try {
-    const expenseRepository = new PrismaExpenseRepository()
-    const updateExpenseService = new UpdateExpenseService(expenseRepository)
+  const expenseRepository = new PrismaExpenseRepository()
+  const updateExpenseService = new UpdateExpenseService(expenseRepository)
 
-    const { expense } = await updateExpenseService.execute({
-      id,
-      userId: request.user.sub,
-      ...updateData,
-      paymentMethod: updateData.payment_method
-    })
+  const { expense } = await updateExpenseService.execute({
+    id,
+    userId: request.user.sub,
+    ...updateData,
+    paymentMethod: updateData.payment_method
+  })
 
-    return reply.status(200).send({
-      expense
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    expense
+  })
 }

@@ -23,18 +23,14 @@ export async function updatePurchase(request: FastifyRequest, reply: FastifyRepl
   const { id } = updatePurchaseParamsSchema.parse(request.params)
   const data = updatePurchaseBodySchema.parse(request.body)
 
-  try {
-    const updateCreditCardPurchaseService = makeUpdateCreditCardPurchaseService()
+  const updateCreditCardPurchaseService = makeUpdateCreditCardPurchaseService()
 
-    const purchase = await updateCreditCardPurchaseService.execute({
-      id,
-      ...data,
-      userId: request.user.sub,
-      installment_amount: data.is_recurring ? data.total_amount : Math.round((data.total_amount / (data.installments || 1)) * 100) / 100
-    })
+  const purchase = await updateCreditCardPurchaseService.execute({
+    id,
+    ...data,
+    userId: request.user.sub,
+    installment_amount: data.is_recurring ? data.total_amount : Math.round((data.total_amount / (data.installments || 1)) * 100) / 100
+  })
 
-    return reply.status(200).send(purchase)
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send(purchase)
 }

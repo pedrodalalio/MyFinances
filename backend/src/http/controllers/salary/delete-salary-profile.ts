@@ -9,16 +9,12 @@ export async function deleteSalaryProfile(request: FastifyRequest, reply: Fastif
 
   const { id } = paramsSchema.parse(request.params)
 
-  try {
-    const service = makeDeleteSalaryProfileService()
+  const service = makeDeleteSalaryProfileService()
 
-    await service.execute({
-      id,
-      userId: request.user.sub,
-    })
+  await service.execute({
+    id,
+    userId: request.user.sub,
+  })
 
-    return reply.status(204).send()
-  } catch (error) {
-    throw error
-  }
+  return reply.status(204).send()
 }

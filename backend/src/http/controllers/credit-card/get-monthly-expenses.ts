@@ -10,17 +10,13 @@ export async function getMonthlyExpenses(request: FastifyRequest, reply: Fastify
 
   const { month, year } = getMonthlyExpensesQuerySchema.parse(request.query)
 
-  try {
-    const getMonthlyExpensesService = makeGetMonthlyExpensesService()
+  const getMonthlyExpensesService = makeGetMonthlyExpensesService()
 
-    const expenses = await getMonthlyExpensesService.execute({
-      userId: request.user.sub,
-      month,
-      year
-    })
+  const expenses = await getMonthlyExpensesService.execute({
+    userId: request.user.sub,
+    month,
+    year
+  })
 
-    return reply.status(200).send(expenses)
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send(expenses)
 }

@@ -1,17 +1,13 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Wallet, TrendingUp } from "lucide-react";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
 import {
   Tooltip,
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
-interface BalanceData {
-  accountBalance: number;
-  investedTotal: number;
-}
 
 function formatCurrency(value: number): string {
   return value.toLocaleString("pt-BR", {
@@ -20,48 +16,27 @@ function formatCurrency(value: number): string {
   });
 }
 
-export function refreshBalanceSummary() {
-  window.dispatchEvent(new Event("balance-updated"));
-}
-
 export default function BalanceSummary() {
-  const [data, setData] = useState<BalanceData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const now = new Date();
+  const month = (now.getMonth() + 1).toString().padStart(2, "0");
+  const year = now.getFullYear();
 
-  const fetchBalance = async () => {
-    try {
-      const now = new Date();
-      const month = (now.getMonth() + 1).toString().padStart(2, "0");
-      const year = now.getFullYear();
-
+  const { data, isPending: loading } = useQuery({
+    queryKey: queryKeys.financialOverview(month, year),
+    queryFn: async () => {
       const [overviewRes, portfolioRes] = await Promise.all([
         api.get(`/financial-overview/${month}/${year}`),
         api.get("/investments/portfolio"),
       ]);
 
-      const finalBalance =
-        overviewRes.data.overview?.financial_data?.final_balance ?? 0;
-      const investedTotal =
-        portfolioRes.data.portfolio?.summary?.currentValue ?? 0;
-
-      setData({
-        accountBalance: finalBalance,
-        investedTotal: investedTotal,
-      });
-    } catch (err) {
-      console.error("Erro ao carregar saldo:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchBalance();
-
-    const handleUpdate = () => fetchBalance();
-    window.addEventListener("balance-updated", handleUpdate);
-    return () => window.removeEventListener("balance-updated", handleUpdate);
-  }, []);
+      return {
+        accountBalance:
+          overviewRes.data.overview?.financial_data?.final_balance ?? 0,
+        investedTotal:
+          portfolioRes.data.portfolio?.summary?.currentValue ?? 0,
+      };
+    },
+  });
 
   if (loading) {
     return (

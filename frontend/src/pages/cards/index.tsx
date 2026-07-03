@@ -1,10 +1,13 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, CreditCard, Trash2, Edit, ChevronDown, ChevronUp, Check, X, Square } from "lucide-react";
+import { Plus, CreditCard, Trash2, Edit, Check, X, Square } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { invalidateFinancialData, queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -21,8 +24,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  } from "@/components/ui/dialog";
 import {
   Form,
   FormControl,
@@ -80,7 +82,8 @@ const cardPurchaseSchema = z.object({
   end_month: z.string().optional(),
   end_year: z.string().optional(),
   category: z.string().optional(),
-  is_recurring: z.boolean().default(false),
+  // sem .default(): o form sempre fornece o valor e o zod v4 divergiria input/output
+  is_recurring: z.boolean(),
 }).refine((data) => {
   if (!data.is_recurring && (!data.installments || Number(data.installments) <= 0)) {
     return false;
@@ -136,9 +139,8 @@ interface MonthlyBill {
 }
 
 const CardsPage = () => {
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
+  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<Purchase | null>(null);
   const [editingInstallmentId, setEditingInstallmentId] = useState<string | null>(null);
   const [editingInstallmentValue, setEditingInstallmentValue] = useState("");
@@ -149,7 +151,6 @@ const CardsPage = () => {
 
   useEffect(() => {
     document.title = "Cartões | MyFinances";
-    loadPurchases();
   }, []);
 
   const form = useForm<CardPurchaseFormValues>({
@@ -170,13 +171,24 @@ const CardsPage = () => {
 
   const isRecurring = form.watch("is_recurring");
 
-  const loadPurchases = async () => {
-    try {
+  const {
+    data: purchases = [],
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.creditCardPurchases,
+    queryFn: async () => {
       const response = await api.get("/credit-cards/purchases");
-      setPurchases(response.data.purchases || []);
-    } catch (error) {
-      console.error("Erro ao carregar gastos:", error);
-    }
+      return (response.data.purchases || []) as Purchase[];
+    },
+  });
+
+  // Invalida o recurso de cartões (lista e faturas por mês) e tudo que deriva
+  // do saldo, já que os gastos de cartão afetam o fechamento do mês.
+  const invalidatePurchases = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.creditCardPurchases });
+    queryClient.invalidateQueries({ queryKey: ["credit-card"] });
+    invalidateFinancialData();
   };
 
   const calculateEndDate = (startMonth: string, startYear: string, installments: string) => {
@@ -192,21 +204,8 @@ const CardsPage = () => {
     };
   };
 
-  const onSubmit = async (values: CardPurchaseFormValues) => {
-    if (editingPurchase) {
-      await updatePurchase(values);
-    } else {
-      await createPurchase(values);
-    }
-  };
-
-  const createPurchase = async (values: CardPurchaseFormValues) => {
-    setLoading(true);
-    try {
-      const { end_month, end_year } = values.is_recurring
-        ? { end_month: undefined, end_year: undefined }
-        : calculateEndDate(values.start_month, values.start_year, values.installments || "");
-
+  const savePurchaseMutation = useMutation({
+    mutationFn: async (values: CardPurchaseFormValues) => {
       const requestBody: any = {
         name: values.name,
         description: values.description,
@@ -217,22 +216,48 @@ const CardsPage = () => {
         is_recurring: values.is_recurring,
       };
 
-      if (!values.is_recurring && values.installments) {
-        requestBody.installments = parseInt(values.installments);
-        requestBody.end_month = end_month;
-        requestBody.end_year = end_year;
+      if (editingPurchase) {
+        if (values.is_recurring) {
+          if (values.end_month && values.end_year) {
+            requestBody.end_month = values.end_month;
+            requestBody.end_year = parseInt(values.end_year);
+          }
+        } else if (values.installments) {
+          const { end_month, end_year } = calculateEndDate(values.start_month, values.start_year, values.installments);
+          requestBody.installments = parseInt(values.installments);
+          requestBody.end_month = end_month;
+          requestBody.end_year = end_year;
+        }
+        await api.put(`/credit-cards/purchases/${editingPurchase.id}`, requestBody);
+      } else {
+        if (!values.is_recurring && values.installments) {
+          const { end_month, end_year } = calculateEndDate(values.start_month, values.start_year, values.installments);
+          requestBody.installments = parseInt(values.installments);
+          requestBody.end_month = end_month;
+          requestBody.end_year = end_year;
+        }
+        await api.post("/credit-cards/purchases", requestBody);
       }
-
-      await api.post("/credit-cards/purchases", requestBody);
+    },
+    onSuccess: () => {
       setIsDialogOpen(false);
+      setEditingPurchase(null);
       form.reset();
-      loadPurchases();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao criar gasto:", error);
-    } finally {
-      setLoading(false);
-    }
+      invalidatePurchases();
+    },
+    onError: () => {
+      toast.error(
+        editingPurchase
+          ? "Não foi possível atualizar o gasto."
+          : "Não foi possível salvar o gasto.",
+      );
+    },
+  });
+
+  const loading = savePurchaseMutation.isPending;
+
+  const onSubmit = (values: CardPurchaseFormValues) => {
+    savePurchaseMutation.mutate(values);
   };
 
   const editPurchase = (purchase: Purchase) => {
@@ -252,74 +277,34 @@ const CardsPage = () => {
     setIsDialogOpen(true);
   };
 
-  const updatePurchase = async (values: CardPurchaseFormValues) => {
-    if (!editingPurchase) return;
+  const deletePurchaseMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/credit-cards/purchases/${id}`),
+    onSuccess: invalidatePurchases,
+    onError: () => toast.error("Não foi possível excluir o gasto."),
+  });
 
-    setLoading(true);
-    try {
-      const requestBody: any = {
-        name: values.name,
-        description: values.description,
-        total_amount: Math.round(parseFloat(values.total_amount) * 100) / 100,
-        start_month: values.start_month,
-        start_year: parseInt(values.start_year),
-        category: values.category,
-        is_recurring: values.is_recurring,
-      };
+  const deletePurchase = (id: string) => deletePurchaseMutation.mutate(id);
 
-      if (values.is_recurring) {
-        if (values.end_month && values.end_year) {
-          requestBody.end_month = values.end_month;
-          requestBody.end_year = parseInt(values.end_year);
-        }
-      } else if (values.installments) {
-        const { end_month, end_year } = calculateEndDate(values.start_month, values.start_year, values.installments);
-        requestBody.installments = parseInt(values.installments);
-        requestBody.end_month = end_month;
-        requestBody.end_year = end_year;
-      }
-
-      await api.put(`/credit-cards/purchases/${editingPurchase.id}`, requestBody);
-      setIsDialogOpen(false);
-      setEditingPurchase(null);
-      form.reset();
-      loadPurchases();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar gasto:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deletePurchase = async (id: string) => {
-    try {
-      await api.delete(`/credit-cards/purchases/${id}`);
-      loadPurchases();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao deletar gasto:", error);
-    }
-  };
-
-  const saveInstallmentAmount = async (installmentId: string, amount: number) => {
-    try {
-      await api.put(`/credit-cards/installments/${installmentId}`, {
+  const saveInstallmentMutation = useMutation({
+    mutationFn: ({ installmentId, amount }: { installmentId: string; amount: number }) =>
+      api.put(`/credit-cards/installments/${installmentId}`, {
         installment_amount: amount,
-      });
+      }),
+    onSuccess: () => {
       setEditingInstallmentId(null);
       setEditingInstallmentValue("");
-      loadPurchases();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar parcela:", error);
-    }
-  };
+      invalidatePurchases();
+    },
+    onError: () => toast.error("Não foi possível atualizar a parcela."),
+  });
 
-  const endRecurring = async (purchase: Purchase) => {
-    try {
+  const saveInstallmentAmount = (installmentId: string, amount: number) =>
+    saveInstallmentMutation.mutate({ installmentId, amount });
+
+  const endRecurringMutation = useMutation({
+    mutationFn: (purchase: Purchase) => {
       const [year, month] = selectedMonth.split("-");
-      await api.put(`/credit-cards/purchases/${purchase.id}`, {
+      return api.put(`/credit-cards/purchases/${purchase.id}`, {
         name: purchase.name,
         description: purchase.description,
         total_amount: Number(purchase.total_amount),
@@ -330,12 +315,12 @@ const CardsPage = () => {
         end_month: month,
         end_year: parseInt(year),
       });
-      loadPurchases();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao encerrar recorrência:", error);
-    }
-  };
+    },
+    onSuccess: invalidatePurchases,
+    onError: () => toast.error("Não foi possível encerrar a recorrência."),
+  });
+
+  const endRecurring = (purchase: Purchase) => endRecurringMutation.mutate(purchase);
 
   const generateMonthlyBills = (): MonthlyBill[] => {
     const billsMap = new Map<string, MonthlyBill>();
@@ -710,7 +695,7 @@ const CardsPage = () => {
       />
 
       {/* Carrossel de meses */}
-      {purchases.length > 0 && (
+      {!isError && purchases.length > 0 && (
         <div className="overflow-x-auto rounded-xl border border-border bg-card/40 p-1">
           <div className="flex gap-1 min-w-max">
             {monthlyBills.map((bill) => {
@@ -739,7 +724,9 @@ const CardsPage = () => {
         </div>
       )}
 
-      {purchases.length === 0 ? (
+      {isError ? (
+        <QueryError onRetry={() => refetch()} />
+      ) : purchases.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <CreditCard className="h-12 w-12 text-muted-foreground mb-4" />

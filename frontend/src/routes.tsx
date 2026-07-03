@@ -10,7 +10,6 @@ import GuestGuard from "./components/guards/GuestGuard";
 import RootRedirect from "./components/guards/RootRedirect";
 
 const Default = lazy(() => import("./pages/dashboard/index.tsx"));
-const Client = lazy(() => import("./pages/clients/index.tsx"));
 const Cards = lazy(() => import("./pages/cards/index.tsx"));
 const Expenses = lazy(() => import("./pages/expenses/index.tsx"));
 const Incomes = lazy(() => import("./pages/incomes/index.tsx"));
@@ -54,20 +53,6 @@ const routes = [
     children: [
       { path: "sign-in", element: <SignIn /> },
       { path: "sign-up", element: <SignUp /> },
-    ],
-  },
-  {
-    path: "clients",
-    element: (
-      <AuthGuard>
-        <DashboardLayout />
-      </AuthGuard>
-    ),
-    children: [
-      {
-        path: "",
-        element: <Client />,
-      },
     ],
   },
   {

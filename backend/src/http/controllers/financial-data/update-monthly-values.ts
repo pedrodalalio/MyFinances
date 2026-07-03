@@ -18,21 +18,17 @@ export async function updateMonthlyValues(request: FastifyRequest, reply: Fastif
   const { month, year } = updateMonthlyValuesParamsSchema.parse(request.params)
   const updateData = updateMonthlyValuesBodySchema.parse(request.body)
 
-  try {
-    const financialDataRepository = new PrismaFinancialDataRepository()
-    const updateMonthlyValuesService = new UpdateMonthlyValuesService(financialDataRepository)
+  const financialDataRepository = new PrismaFinancialDataRepository()
+  const updateMonthlyValuesService = new UpdateMonthlyValuesService(financialDataRepository)
 
-    const { financialData } = await updateMonthlyValuesService.execute({
-      userId: request.user.sub,
-      month,
-      year,
-      ...updateData
-    })
+  const { financialData } = await updateMonthlyValuesService.execute({
+    userId: request.user.sub,
+    month,
+    year,
+    ...updateData
+  })
 
-    return reply.status(200).send({
-      financialData
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    financialData
+  })
 }

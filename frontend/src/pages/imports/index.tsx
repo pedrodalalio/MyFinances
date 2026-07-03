@@ -3,9 +3,7 @@ import {
   Upload,
   FileUp,
   Check,
-  X,
   Trash2,
-  ChevronDown,
   ArrowDownLeft,
   ArrowUpRight,
   TrendingUp,
@@ -14,8 +12,11 @@ import {
   Ban,
   AlertTriangle,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { invalidateFinancialData, queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -124,6 +125,11 @@ interface ImportRecord {
   _count?: { transactions: number };
 }
 
+interface ImportDetailResponse {
+  import: ImportRecord;
+  orphans?: OrphanRecord[];
+}
+
 const months: Record<string, string> = {
   "01": "Janeiro",
   "02": "Fevereiro",
@@ -140,174 +146,216 @@ const months: Record<string, string> = {
 };
 
 const ImportsPage = () => {
-  const [imports, setImports] = useState<ImportRecord[]>([]);
+  const queryClient = useQueryClient();
   const [selectedImport, setSelectedImport] = useState<ImportRecord | null>(
     null,
   );
   const [orphans, setOrphans] = useState<OrphanRecord[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     document.title = "Importações | MyFinances";
-    loadImports();
   }, []);
 
-  const loadImports = async () => {
-    try {
+  const importsQuery = useQuery({
+    queryKey: queryKeys.imports,
+    queryFn: async () => {
       const response = await api.get("/imports");
-      setImports(response.data.imports || []);
-    } catch (error) {
-      console.error("Erro ao carregar importações:", error);
-    }
+      return (response.data.imports || []) as ImportRecord[];
+    },
+  });
+  const imports = importsQuery.data ?? [];
+
+  // Confirmar transações cria gastos/entradas/investimentos/impostos:
+  // invalida esses escopos além dos dados financeiros globais (saldo)
+  const invalidateConfirmedRecords = () => {
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: ["incomes"] });
+    queryClient.invalidateQueries({ queryKey: ["investments"] });
+    queryClient.invalidateQueries({ queryKey: ["taxes"] });
+    invalidateFinancialData();
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Atualiza uma transação da importação aberta localmente, sem refazer o fetch
+  const patchSelectedTransaction = (
+    transactionId: string,
+    patch: Partial<ImportTransaction>,
+  ) => {
+    setSelectedImport((current) =>
+      current?.transactions
+        ? {
+            ...current,
+            transactions: current.transactions.map((t) =>
+              t.id === transactionId ? { ...t, ...patch } : t,
+            ),
+          }
+        : current,
+    );
+  };
 
-    setUploading(true);
-    try {
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append("file", file);
 
       const response = await api.post("/imports/upload", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
+      return response.data as ImportDetailResponse;
+    },
+    onSuccess: (data) => {
       // Abrir detalhes da importação recém-criada
-      setSelectedImport(response.data.import);
-      setOrphans(response.data.orphans || []);
+      setSelectedImport(data.import);
+      setOrphans(data.orphans || []);
       setIsDetailOpen(true);
-      loadImports();
-    } catch (error: any) {
-      const msg =
-        error?.response?.data?.message || "Erro ao importar arquivo.";
-      alert(msg);
-    } finally {
-      setUploading(false);
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports });
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message || "Erro ao importar arquivo.",
+      );
+    },
+    onSettled: () => {
       if (fileInputRef.current) fileInputRef.current.value = "";
-    }
+    },
+  });
+  const uploading = uploadMutation.isPending;
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    uploadMutation.mutate(file);
   };
 
   const openImportDetail = async (importRecord: ImportRecord) => {
     try {
-      const response = await api.get(`/imports/${importRecord.id}`);
-      setSelectedImport(response.data.import);
-      setOrphans(response.data.orphans || []);
+      // staleTime 0: sempre busca os detalhes atualizados ao abrir
+      const data = await queryClient.fetchQuery({
+        queryKey: [...queryKeys.imports, "detail", importRecord.id],
+        queryFn: async () => {
+          const response = await api.get(`/imports/${importRecord.id}`);
+          return response.data as ImportDetailResponse;
+        },
+        staleTime: 0,
+      });
+      setSelectedImport(data.import);
+      setOrphans(data.orphans || []);
       setIsDetailOpen(true);
-    } catch (error) {
-      console.error("Erro ao carregar detalhes:", error);
+    } catch {
+      toast.error("Erro ao carregar detalhes da importação.");
     }
   };
 
-  const updateTransactionType = async (
-    transactionId: string,
-    type: string,
-  ) => {
-    try {
-      await api.put(`/imports/transactions/${transactionId}`, { type });
-      // Atualizar localmente
-      if (selectedImport?.transactions) {
-        setSelectedImport({
-          ...selectedImport,
-          transactions: selectedImport.transactions.map((t) =>
-            t.id === transactionId ? { ...t, type } : t,
-          ),
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar transação:", error);
-    }
+  const updateTypeMutation = useMutation({
+    mutationFn: async (payload: { transactionId: string; type: string }) =>
+      api.put(`/imports/transactions/${payload.transactionId}`, {
+        type: payload.type,
+      }),
+    onSuccess: (_data, { transactionId, type }) => {
+      patchSelectedTransaction(transactionId, { type });
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar transação.");
+    },
+  });
+
+  const updateTransactionType = (transactionId: string, type: string) => {
+    updateTypeMutation.mutate({ transactionId, type });
   };
 
-  const updateTransactionCategory = async (
+  const updateCategoryMutation = useMutation({
+    mutationFn: async (payload: {
+      transactionId: string;
+      category: string | null;
+    }) =>
+      api.put(`/imports/transactions/${payload.transactionId}`, {
+        category: payload.category,
+      }),
+    onSuccess: (_data, { transactionId, category }) => {
+      patchSelectedTransaction(transactionId, { category });
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar categoria.");
+    },
+  });
+
+  const updateTransactionCategory = (
     transactionId: string,
     category: string,
   ) => {
-    try {
-      await api.put(`/imports/transactions/${transactionId}`, {
-        category: category || null,
-      });
-      if (selectedImport?.transactions) {
-        setSelectedImport({
-          ...selectedImport,
-          transactions: selectedImport.transactions.map((t) =>
-            t.id === transactionId
-              ? { ...t, category: category || null }
-              : t,
-          ),
-        });
-      }
-    } catch (error) {
-      console.error("Erro ao atualizar categoria:", error);
-    }
+    updateCategoryMutation.mutate({
+      transactionId,
+      category: category || null,
+    });
   };
 
-  const [confirmingId, setConfirmingId] = useState<string | null>(null);
-
-  const confirmSingleTransaction = async (transactionId: string) => {
-    setConfirmingId(transactionId);
-    try {
-      await api.post(`/imports/transactions/${transactionId}/confirm`);
-      if (selectedImport?.transactions) {
-        setSelectedImport({
-          ...selectedImport,
-          transactions: selectedImport.transactions.map((t) =>
-            t.id === transactionId ? { ...t, is_confirmed: true } : t,
-          ),
-        });
-      }
-      refreshBalanceSummary();
-    } catch (error: any) {
-      const msg =
-        error?.response?.data?.message || "Erro ao cadastrar transação.";
-      alert(msg);
-    } finally {
-      setConfirmingId(null);
-    }
-  };
-
-  const confirmImport = async () => {
-    if (!selectedImport) return;
-
-    setConfirming(true);
-    try {
-      const response = await api.post(
-        `/imports/${selectedImport.id}/confirm`,
+  const confirmSingleMutation = useMutation({
+    mutationFn: async (transactionId: string) =>
+      api.post(`/imports/transactions/${transactionId}/confirm`),
+    onSuccess: (_data, transactionId) => {
+      patchSelectedTransaction(transactionId, { is_confirmed: true });
+      invalidateConfirmedRecords();
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message || "Erro ao cadastrar transação.",
       );
-      const c = response.data.counts;
+    },
+  });
+  const confirmingId = confirmSingleMutation.isPending
+    ? (confirmSingleMutation.variables ?? null)
+    : null;
+
+  const confirmSingleTransaction = (transactionId: string) => {
+    confirmSingleMutation.mutate(transactionId);
+  };
+
+  const confirmImportMutation = useMutation({
+    mutationFn: async (importId: string) => {
+      const response = await api.post(`/imports/${importId}/confirm`);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      const c = data.counts;
       alert(
         `Importação confirmada!\n\nGastos: ${c.expenses}\nEntradas: ${c.incomes}\nInvestimentos: ${c.investments}\nImpostos: ${c.taxes}\nIgnorados: ${c.ignored}${c.grouped_transactions > 0 ? `\nTransações agrupadas: ${c.grouped_transactions}` : ''}`,
       );
       setIsDetailOpen(false);
       setSelectedImport(null);
-      loadImports();
-      refreshBalanceSummary();
-    } catch (error: any) {
-      const msg =
-        error?.response?.data?.message || "Erro ao confirmar importação.";
-      alert(msg);
-    } finally {
-      setConfirming(false);
-    }
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports });
+      invalidateConfirmedRecords();
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message || "Erro ao confirmar importação.",
+      );
+    },
+  });
+  const confirming = confirmImportMutation.isPending;
+
+  const confirmImport = () => {
+    if (!selectedImport) return;
+    confirmImportMutation.mutate(selectedImport.id);
   };
 
-  const deleteImport = async (importId: string) => {
-    if (!confirm("Tem certeza que deseja excluir esta importação?")) return;
-
-    try {
-      await api.delete(`/imports/${importId}`);
-      loadImports();
+  const deleteImportMutation = useMutation({
+    mutationFn: async (importId: string) => api.delete(`/imports/${importId}`),
+    onSuccess: (_data, importId) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.imports });
       if (selectedImport?.id === importId) {
         setIsDetailOpen(false);
         setSelectedImport(null);
       }
-    } catch (error) {
-      console.error("Erro ao excluir importação:", error);
-    }
+    },
+    onError: () => {
+      toast.error("Erro ao excluir importação.");
+    },
+  });
+
+  const deleteImport = (importId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta importação?")) return;
+    deleteImportMutation.mutate(importId);
   };
 
   // Resumo das transações da importação selecionada
@@ -378,7 +426,9 @@ const ImportsPage = () => {
 
       {/* Lista de importações */}
       <div className="grid gap-4">
-        {imports.length === 0 ? (
+        {importsQuery.isError ? (
+          <QueryError onRetry={() => importsQuery.refetch()} />
+        ) : imports.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileUp className="h-12 w-12 text-muted-foreground mb-4" />

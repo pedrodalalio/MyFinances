@@ -1,6 +1,6 @@
 import React, { Suspense } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
-import { Bell, LogOut, Sun, Moon, ChevronsLeft, Menu } from "lucide-react";
+import { LogOut, Sun, Moon, ChevronsLeft, Menu } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -247,9 +247,6 @@ const TopBar = () => {
           ) : (
             <Sun className="size-4" />
           )}
-        </Button>
-        <Button variant="ghost" size="icon" aria-label="Notificações">
-          <Bell className="size-4" />
         </Button>
       </div>
     </header>

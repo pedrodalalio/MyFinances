@@ -18,26 +18,22 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
 
   const { name, description, amount, payment_method, category, month, year, date } = createExpenseBodySchema.parse(request.body)
 
-  try {
-    const expenseRepository = new PrismaExpenseRepository()
-    const createExpenseService = new CreateExpenseService(expenseRepository)
+  const expenseRepository = new PrismaExpenseRepository()
+  const createExpenseService = new CreateExpenseService(expenseRepository)
 
-    const { expense } = await createExpenseService.execute({
-      userId: request.user.sub,
-      name,
-      description,
-      amount,
-      paymentMethod: payment_method,
-      category,
-      month,
-      year,
-      date
-    })
+  const { expense } = await createExpenseService.execute({
+    userId: request.user.sub,
+    name,
+    description,
+    amount,
+    paymentMethod: payment_method,
+    category,
+    month,
+    year,
+    date
+  })
 
-    return reply.status(201).send({
-      expense
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(201).send({
+    expense
+  })
 }

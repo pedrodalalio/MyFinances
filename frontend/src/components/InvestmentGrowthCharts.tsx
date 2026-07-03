@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   LineChart,
   Line,
@@ -12,6 +12,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 import { TrendingUp } from "lucide-react";
 
 interface SnapshotPoint {
@@ -138,30 +140,35 @@ function buildByNameData(invs: InvestmentHistory[]) {
 }
 
 export default function InvestmentGrowthCharts() {
-  const [investments, setInvestments] = useState<InvestmentHistory[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    data: investments = [],
+    isPending,
+    isError,
+    refetch,
+  } = useQuery<InvestmentHistory[]>({
+    queryKey: queryKeys.investmentHistory,
+    queryFn: async () => {
+      const response = await api.get("/investments/history");
+      return response.data.investments || [];
+    },
+  });
 
-  useEffect(() => {
-    async function fetchHistory() {
-      try {
-        const response = await api.get("/investments/history");
-        setInvestments(response.data.investments || []);
-      } catch (err) {
-        console.error("Erro ao carregar histórico:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchHistory();
-  }, []);
-
-  if (loading) {
+  if (isPending) {
     return (
       <Card>
         <CardContent className="p-6">
           <div className="h-64 bg-muted animate-pulse rounded" />
         </CardContent>
       </Card>
+    );
+  }
+
+  if (isError) {
+    return (
+      <QueryError
+        message="Não foi possível carregar a evolução dos investimentos."
+        onRetry={() => refetch()}
+      />
     );
   }
 

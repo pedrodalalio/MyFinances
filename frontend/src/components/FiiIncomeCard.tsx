@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Coins, ArrowRight, CalendarClock } from "lucide-react";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,16 +18,15 @@ import { formatBRL, formatISODate } from "@/components/FiiIncomePanel";
  */
 export const FiiIncomeCard = () => {
   const navigate = useNavigate();
-  const [data, setData] = useState<FiiIncomeData | null>(null);
+  const { data, isError } = useQuery<FiiIncomeData>({
+    queryKey: queryKeys.fiiIncome,
+    queryFn: async () => (await api.get("/investments/fii-income")).data,
+  });
 
+  // Card compacto: em erro continua sem renderizar, mas avisa o usuário
   useEffect(() => {
-    api
-      .get("/investments/fii-income")
-      .then((response) => setData(response.data))
-      .catch((err) =>
-        console.error("Erro ao carregar renda FII no dashboard:", err),
-      );
-  }, []);
+    if (isError) toast.error("Não foi possível carregar a renda dos FIIs.");
+  }, [isError]);
 
   if (!data || data.funds.length === 0) return null;
 

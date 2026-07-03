@@ -13,17 +13,13 @@ export async function deleteIncome(
 
   const { id } = deleteIncomeParamsSchema.parse(request.params);
 
-  try {
-    const incomeRepository = new PrismaIncomeRepository();
-    const deleteIncomeService = new DeleteIncomeService(incomeRepository);
+  const incomeRepository = new PrismaIncomeRepository();
+  const deleteIncomeService = new DeleteIncomeService(incomeRepository);
 
-    await deleteIncomeService.execute({
-      id,
-      userId: request.user.sub,
-    });
+  await deleteIncomeService.execute({
+    id,
+    userId: request.user.sub,
+  });
 
-    return reply.status(204).send();
-  } catch (error) {
-    throw error;
-  }
+  return reply.status(204).send();
 }

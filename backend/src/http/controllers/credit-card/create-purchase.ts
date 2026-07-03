@@ -21,21 +21,17 @@ export async function createPurchase(
 
   const data = createPurchaseBodySchema.parse(request.body);
 
-  try {
-    const createCreditCardPurchaseService =
-      makeCreateCreditCardPurchaseService();
+  const createCreditCardPurchaseService =
+    makeCreateCreditCardPurchaseService();
 
-    const purchase = await createCreditCardPurchaseService.execute({
-      ...data,
-      userId: request.user.sub,
-      installment_amount: data.is_recurring
-        ? data.total_amount
-        : Math.round((data.total_amount / (data.installments || 1)) * 100) /
-          100,
-    });
+  const purchase = await createCreditCardPurchaseService.execute({
+    ...data,
+    userId: request.user.sub,
+    installment_amount: data.is_recurring
+      ? data.total_amount
+      : Math.round((data.total_amount / (data.installments || 1)) * 100) /
+        100,
+  });
 
-    return reply.status(201).send(purchase);
-  } catch (error) {
-    throw error;
-  }
+  return reply.status(201).send(purchase);
 }

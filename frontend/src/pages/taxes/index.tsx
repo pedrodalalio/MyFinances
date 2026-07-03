@@ -1,17 +1,19 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Plus, FileText, Trash2, Edit, Calendar, Clock } from "lucide-react";
+import { Plus, FileText, Trash2, Edit, Calendar } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { queryKeys, invalidateFinancialData } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -138,17 +140,35 @@ interface Tax {
 }
 
 const TaxesPage = () => {
-  const [taxes, setTaxes] = useState<Tax[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [editingTax, setEditingTax] = useState<Tax | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     document.title = "Impostos | MyFinances";
-    loadTaxes();
-  }, [selectedMonth, selectedYear]);
+  }, []);
+
+  const queryClient = useQueryClient();
+  const monthKey = selectedMonth.toString().padStart(2, "0");
+
+  const {
+    data: taxes = [],
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: queryKeys.taxes(monthKey, selectedYear),
+    queryFn: async () => {
+      const response = await api.get(`/taxes/${monthKey}/${selectedYear}`);
+      return (response.data.taxes || []) as Tax[];
+    },
+  });
+
+  // Impostos mexem no saldo: invalida as keys do recurso e os dados financeiros globais
+  const invalidateTaxes = () => {
+    queryClient.invalidateQueries({ queryKey: ["taxes"] });
+    invalidateFinancialData();
+  };
 
   const form = useForm<TaxFormValues>({
     resolver: zodResolver(taxSchema),
@@ -164,21 +184,11 @@ const TaxesPage = () => {
     },
   });
 
-  const loadTaxes = async () => {
-    try {
-      const month = selectedMonth.toString().padStart(2, "0");
-      const response = await api.get(`/taxes/${month}/${selectedYear}`);
-      setTaxes(response.data.taxes || []);
-    } catch (error) {
-      console.error("Erro ao carregar impostos:", error);
-    }
-  };
-
-  const onSubmit = async (values: TaxFormValues) => {
+  const onSubmit = (values: TaxFormValues) => {
     if (editingTax) {
-      await updateTax(values);
+      updateMutation.mutate({ id: editingTax.id, values });
     } else {
-      await createTax(values);
+      createMutation.mutate(values);
     }
   };
 
@@ -194,9 +204,8 @@ const TaxesPage = () => {
     return `${year}-${formattedMonth}-${formattedDay}`;
   };
 
-  const createTax = async (values: TaxFormValues) => {
-    setLoading(true);
-    try {
+  const createMutation = useMutation({
+    mutationFn: async (values: TaxFormValues) => {
       if (values.frequency === "MONTHLY") {
         // Para frequência mensal, criar para todos os meses até o fim do ano
         const startMonth = parseInt(values.month);
@@ -238,17 +247,16 @@ const TaxesPage = () => {
 
         await api.post("/taxes", requestBody);
       }
-
+    },
+    onSuccess: () => {
       setIsDialogOpen(false);
       form.reset();
-      loadTaxes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao criar imposto:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      invalidateTaxes();
+    },
+    onError: () => {
+      toast.error("Erro ao criar imposto.");
+    },
+  });
 
   const editTax = (tax: Tax) => {
     setEditingTax(tax);
@@ -266,11 +274,8 @@ const TaxesPage = () => {
     setIsDialogOpen(true);
   };
 
-  const updateTax = async (values: TaxFormValues) => {
-    if (!editingTax) return;
-
-    setLoading(true);
-    try {
+  const updateMutation = useMutation({
+    mutationFn: ({ id, values }: { id: string; values: TaxFormValues }) => {
       const requestBody = {
         name: generateTaxName(values.tax_type, values.month, values.year),
         description: values.description,
@@ -284,27 +289,33 @@ const TaxesPage = () => {
         year: parseInt(values.year),
       };
 
-      await api.put(`/taxes/${editingTax.id}`, requestBody);
+      return api.put(`/taxes/${id}`, requestBody);
+    },
+    onSuccess: () => {
       setIsDialogOpen(false);
       setEditingTax(null);
       form.reset();
-      loadTaxes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar imposto:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+      invalidateTaxes();
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar imposto.");
+    },
+  });
 
-  const deleteTax = async (id: string) => {
-    try {
-      await api.delete(`/taxes/${id}`);
-      loadTaxes();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao deletar imposto:", error);
-    }
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/taxes/${id}`),
+    onSuccess: () => {
+      invalidateTaxes();
+    },
+    onError: () => {
+      toast.error("Erro ao deletar imposto.");
+    },
+  });
+
+  const loading = createMutation.isPending || updateMutation.isPending;
+
+  const deleteTax = (id: string) => {
+    deleteMutation.mutate(id);
   };
 
 
@@ -617,7 +628,10 @@ const TaxesPage = () => {
         }
       />
 
+      {isError && <QueryError onRetry={() => refetch()} />}
+
       {/* Resumo */}
+      {!isError && (
       <div className="grid gap-4 md:grid-cols-1">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -636,6 +650,7 @@ const TaxesPage = () => {
           </CardContent>
         </Card>
       </div>
+      )}
 
       {/* Filtros */}
       <Card>
@@ -687,6 +702,7 @@ const TaxesPage = () => {
         </CardContent>
       </Card>
 
+      {!isError && (
       <div className="grid gap-4">
         {taxes.length === 0 ? (
           <Card>
@@ -781,6 +797,7 @@ const TaxesPage = () => {
           ))
         )}
       </div>
+      )}
     </div>
   );
 };

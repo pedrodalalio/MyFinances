@@ -1,4 +1,4 @@
-import { Home, Settings, CreditCard, Calendar, Wallet, TrendingUp, FileText, PieChart, ArrowDownLeft, Upload } from "lucide-react";
+import { Home, Settings, CreditCard, Calendar, Wallet, TrendingUp, FileText, ArrowDownLeft, Upload } from "lucide-react";
 
 interface DashboardItem {
   title: string;

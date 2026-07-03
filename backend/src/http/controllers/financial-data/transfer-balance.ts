@@ -10,19 +10,15 @@ export async function transferBalance(request: FastifyRequest, reply: FastifyRep
 
   const { month, year } = transferBalanceParamsSchema.parse(request.params)
 
-  try {
-    const transferBalanceService = makeTransferBalanceService()
+  const transferBalanceService = makeTransferBalanceService()
 
-    await transferBalanceService.execute({
-      userId: request.user.sub,
-      fromMonth: month,
-      fromYear: year
-    })
+  await transferBalanceService.execute({
+    userId: request.user.sub,
+    fromMonth: month,
+    fromYear: year
+  })
 
-    return reply.status(200).send({
-      message: "Saldo transferido com sucesso para o próximo mês"
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    message: "Saldo transferido com sucesso para o próximo mês"
+  })
 }

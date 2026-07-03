@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,8 +10,16 @@ import {
   TrendingUp,
   ArrowDownLeft,
 } from "lucide-react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { invalidateFinancialData, queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -178,19 +186,7 @@ const MonthlyTrackingPage = () => {
     };
   });
 
-  const [expensesData, setExpensesData] = useState<MonthlyExpensesData | null>(
-    null,
-  );
-  const [cashExpensesData, setCashExpensesData] =
-    useState<CashExpensesData | null>(null);
-  const [incomesData, setIncomesData] =
-    useState<IncomesData | null>(null);
-  const [investmentsData, setInvestmentsData] =
-    useState<InvestmentsData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [loadingCashExpenses, setLoadingCashExpenses] = useState(false);
-  const [loadingIncomes, setLoadingIncomes] = useState(false);
-  const [loadingInvestments, setLoadingInvestments] = useState(false);
+  const queryClient = useQueryClient();
   const [editingInstallment, setEditingInstallment] =
     useState<MonthlyExpense | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -205,98 +201,86 @@ const MonthlyTrackingPage = () => {
 
   useEffect(() => {
     document.title = "Fechamento Mensal | MyFinances";
-    loadMonthlyExpenses();
-    loadCashExpenses();
-    loadIncomes();
-    loadInvestments();
-  }, [currentDate]);
+  }, []);
 
-  const loadMonthlyExpenses = async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(
-        `/credit-cards/monthly-expenses?month=${currentDate.month}&year=${currentDate.year}`,
-      );
-      setExpensesData(response.data);
-    } catch (error) {
-      console.error("Erro ao carregar gastos mensais:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { month, year } = currentDate;
 
-  const loadCashExpenses = async () => {
-    setLoadingCashExpenses(true);
-    try {
+  // keepPreviousData mantém os dados do mês anterior visíveis enquanto o novo carrega
+  const expensesQuery = useQuery({
+    queryKey: queryKeys.creditCard(month, year),
+    queryFn: async () => {
       const response = await api.get(
-        `/expenses/${currentDate.month}/${currentDate.year}`,
+        `/credit-cards/monthly-expenses?month=${month}&year=${year}`,
       );
-      const data = response.data;
-      const total = data.expenses.reduce(
-        (sum: number, expense: CashExpense) => sum + Number(expense.amount),
-        0,
-      );
-      setCashExpensesData({
-        expenses: data.expenses,
-        total,
-        month: currentDate.month,
-        year: currentDate.year,
-      });
-    } catch (error) {
-      console.error("Erro ao carregar gastos à vista:", error);
-    } finally {
-      setLoadingCashExpenses(false);
-    }
-  };
+      return response.data as MonthlyExpensesData;
+    },
+    placeholderData: keepPreviousData,
+  });
+  const expensesData = expensesQuery.data ?? null;
+  const loading = expensesQuery.isFetching;
 
-  const loadIncomes = async () => {
-    setLoadingIncomes(true);
-    try {
-      const response = await api.get(
-        `/incomes/${currentDate.month}/${currentDate.year}`,
-      );
-      const data = response.data;
-      const total = data.incomes.reduce(
-        (sum: number, income: IncomeEntry) => sum + Number(income.amount),
-        0,
-      );
-      setIncomesData({
-        incomes: data.incomes,
-        total,
-        month: currentDate.month,
-        year: currentDate.year,
-      });
-    } catch (error) {
-      console.error("Erro ao carregar entradas:", error);
-    } finally {
-      setLoadingIncomes(false);
-    }
-  };
+  const cashExpensesQuery = useQuery({
+    queryKey: queryKeys.expenses(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/expenses/${month}/${year}`);
+      return (response.data.expenses || []) as CashExpense[];
+    },
+    placeholderData: keepPreviousData,
+  });
+  const cashExpensesData: CashExpensesData | null = cashExpensesQuery.data
+    ? {
+        expenses: cashExpensesQuery.data,
+        total: cashExpensesQuery.data.reduce(
+          (sum, expense) => sum + Number(expense.amount),
+          0,
+        ),
+        month,
+        year,
+      }
+    : null;
+  const loadingCashExpenses = cashExpensesQuery.isFetching;
 
-  const loadInvestments = async () => {
-    setLoadingInvestments(true);
-    try {
-      const response = await api.get(
-        `/monthly-investments/${currentDate.month}/${currentDate.year}`,
-      );
-      const data = response.data;
-      const total = data.investments.reduce(
-        (sum: number, investment: Investment) =>
-          sum + Number(investment.amount),
-        0,
-      );
-      setInvestmentsData({
-        investments: data.investments,
-        total,
-        month: currentDate.month,
-        year: currentDate.year,
-      });
-    } catch (error) {
-      console.error("Erro ao carregar investimentos:", error);
-    } finally {
-      setLoadingInvestments(false);
-    }
-  };
+  const incomesQuery = useQuery({
+    queryKey: queryKeys.incomes(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/incomes/${month}/${year}`);
+      return (response.data.incomes || []) as IncomeEntry[];
+    },
+    placeholderData: keepPreviousData,
+  });
+  const incomesData: IncomesData | null = incomesQuery.data
+    ? {
+        incomes: incomesQuery.data,
+        total: incomesQuery.data.reduce(
+          (sum, income) => sum + Number(income.amount),
+          0,
+        ),
+        month,
+        year,
+      }
+    : null;
+  const loadingIncomes = incomesQuery.isFetching;
+
+  const investmentsQuery = useQuery({
+    queryKey: queryKeys.investments(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/monthly-investments/${month}/${year}`);
+      return (response.data.investments || []) as Investment[];
+    },
+    placeholderData: keepPreviousData,
+  });
+  const investmentsData: InvestmentsData | null = investmentsQuery.data
+    ? {
+        investments: investmentsQuery.data,
+        total: investmentsQuery.data.reduce(
+          (sum, investment) => sum + Number(investment.amount),
+          0,
+        ),
+        month,
+        year,
+      }
+    : null;
+  const loadingInvestments = investmentsQuery.isFetching;
 
   const navigateMonth = (direction: "prev" | "next") => {
     const currentMonth = parseInt(currentDate.month);
@@ -342,42 +326,32 @@ const MonthlyTrackingPage = () => {
     }
   };
 
-  const onSubmitEdit = async (values: EditInstallmentFormValues) => {
-    if (!editingInstallment) return;
-
-    try {
-      await api.put(`/credit-cards/installments/${editingInstallment.id}`, {
-        installment_amount: parseFloat(values.installment_amount),
-      });
-
-      // Atualizar o valor localmente sem recarregar tudo
-      if (expensesData) {
-        const updatedExpenses = expensesData.expenses.map((expense) =>
-          expense.id === editingInstallment.id
-            ? { ...expense, amount: parseFloat(values.installment_amount) }
-            : expense,
-        );
-
-        const newTotal = updatedExpenses.reduce(
-          (sum, expense) => sum + expense.amount,
-          0,
-        );
-
-        setExpensesData({
-          ...expensesData,
-          expenses: updatedExpenses,
-          total: newTotal,
-        });
-      }
-
+  const updateInstallmentMutation = useMutation({
+    mutationFn: async (payload: { id: string; amount: number }) =>
+      api.put(`/credit-cards/installments/${payload.id}`, {
+        installment_amount: payload.amount,
+      }),
+    onSuccess: () => {
       setIsEditDialogOpen(false);
       setEditingInstallment(null);
       editForm.reset();
       setOverviewKey((prev) => prev + 1); // Força o FinancialOverview a recarregar
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar parcela:", error);
-    }
+      // A edição mexe no saldo: refaz a fatura do mês e os dados financeiros globais
+      queryClient.invalidateQueries({ queryKey: ["credit-card"] });
+      invalidateFinancialData();
+    },
+    onError: () => {
+      toast.error("Erro ao atualizar parcela.");
+    },
+  });
+
+  const onSubmitEdit = (values: EditInstallmentFormValues) => {
+    if (!editingInstallment) return;
+
+    updateInstallmentMutation.mutate({
+      id: editingInstallment.id,
+      amount: parseFloat(values.installment_amount),
+    });
   };
 
   return (
@@ -439,7 +413,10 @@ const MonthlyTrackingPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {expensesData && (
+          {expensesQuery.isError && (
+            <QueryError onRetry={() => expensesQuery.refetch()} />
+          )}
+          {!expensesQuery.isError && expensesData && (
             <div className="space-y-4">
               {/* Resumo dos gastos */}
               <div className="grid gap-4 md:grid-cols-2">
@@ -557,7 +534,10 @@ const MonthlyTrackingPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {cashExpensesData && (
+          {cashExpensesQuery.isError && (
+            <QueryError onRetry={() => cashExpensesQuery.refetch()} />
+          )}
+          {!cashExpensesQuery.isError && cashExpensesData && (
             <div className="space-y-4">
               {/* Resumo dos gastos */}
               <div className="grid gap-4 md:grid-cols-3">
@@ -670,7 +650,10 @@ const MonthlyTrackingPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {incomesData && (
+          {incomesQuery.isError && (
+            <QueryError onRetry={() => incomesQuery.refetch()} />
+          )}
+          {!incomesQuery.isError && incomesData && (
             <div className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
@@ -764,7 +747,10 @@ const MonthlyTrackingPage = () => {
           </div>
         </CardHeader>
         <CardContent>
-          {investmentsData && (
+          {investmentsQuery.isError && (
+            <QueryError onRetry={() => investmentsQuery.refetch()} />
+          )}
+          {!investmentsQuery.isError && investmentsData && (
             <div className="space-y-4">
               {/* Resumo dos investimentos */}
               <div className="grid gap-4 md:grid-cols-3">

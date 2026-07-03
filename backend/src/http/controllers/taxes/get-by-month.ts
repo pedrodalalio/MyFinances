@@ -11,20 +11,16 @@ export async function getByMonth(request: FastifyRequest, reply: FastifyReply) {
 
   const { month, year } = getTaxesByMonthParamsSchema.parse(request.params)
 
-  try {
-    const taxRepository = new PrismaTaxRepository()
-    const getTaxesByMonthService = new GetTaxesByMonthService(taxRepository)
+  const taxRepository = new PrismaTaxRepository()
+  const getTaxesByMonthService = new GetTaxesByMonthService(taxRepository)
 
-    const { taxes } = await getTaxesByMonthService.execute({
-      userId: request.user.sub,
-      month,
-      year
-    })
+  const { taxes } = await getTaxesByMonthService.execute({
+    userId: request.user.sub,
+    month,
+    year
+  })
 
-    return reply.status(200).send({
-      taxes
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    taxes
+  })
 }

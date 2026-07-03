@@ -18,26 +18,22 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
 
   const { tax_type, amount, payment_method, frequency, day_of_month, month, year, due_date } = createTaxBodySchema.parse(request.body)
 
-  try {
-    const taxRepository = new PrismaTaxRepository()
-    const createTaxService = new CreateTaxService(taxRepository)
+  const taxRepository = new PrismaTaxRepository()
+  const createTaxService = new CreateTaxService(taxRepository)
 
-    const { tax } = await createTaxService.execute({
-      userId: request.user.sub,
-      taxType: tax_type,
-      amount,
-      paymentMethod: payment_method,
-      frequency,
-      dayOfMonth: day_of_month,
-      month,
-      year,
-      dueDate: due_date
-    })
+  const { tax } = await createTaxService.execute({
+    userId: request.user.sub,
+    taxType: tax_type,
+    amount,
+    paymentMethod: payment_method,
+    frequency,
+    dayOfMonth: day_of_month,
+    month,
+    year,
+    dueDate: due_date
+  })
 
-    return reply.status(201).send({
-      tax
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(201).send({
+    tax
+  })
 }

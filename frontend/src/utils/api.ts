@@ -108,3 +108,101 @@ api.interceptors.response.use(
 );
 
 export { api };
+
+// ---------------------------------------------------------------------------
+// Serviços de auth/dashboard — client único da API (antes em services/api.ts)
+// ---------------------------------------------------------------------------
+
+interface SignUpData {
+  name: string;
+  email: string;
+  password: string;
+}
+
+interface SignInData {
+  email: string;
+  password: string;
+}
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatar?: string;
+}
+
+interface AuthResponse {
+  user: User;
+  token: string;
+}
+
+async function request<T>(
+  endpoint: string,
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
+  data?: any
+): Promise<T> {
+  try {
+    const response = await api({ url: endpoint, method, data });
+    return response.data;
+  } catch (error: any) {
+    const errorMessage = error.response?.data?.message || error.message || 'Request failed';
+    throw new Error(errorMessage);
+  }
+}
+
+export const apiService = {
+  signUp(userData: SignUpData): Promise<AuthResponse> {
+    return request<AuthResponse>('/auth/register', 'POST', userData);
+  },
+
+  signIn(credentials: SignInData): Promise<AuthResponse> {
+    return request<AuthResponse>('/auth/login', 'POST', credentials);
+  },
+
+  getProfile(): Promise<User> {
+    return request<User>('/auth/profile', 'GET');
+  },
+
+  async refreshToken(): Promise<{ token: string }> {
+    try {
+      const response = await api({
+        url: REFRESH_URL,
+        method: 'PATCH',
+        withCredentials: true, // Include cookies for refresh token
+      });
+      return response.data;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Token refresh failed';
+      throw new Error(errorMessage);
+    }
+  },
+
+  async logout(): Promise<void> {
+    try {
+      await request<void>('/auth/logout', 'POST');
+    } catch {
+      // Mesmo se o servidor falhar, o frontend descarta a sessão local
+    }
+  },
+
+  getDashboardSummary(month?: string, year?: string): Promise<any> {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month);
+    if (year) params.append('year', year);
+
+    const queryString = params.toString();
+    const url = queryString ? `/dashboard/summary?${queryString}` : '/dashboard/summary';
+
+    return request<any>(url, 'GET');
+  },
+
+  getMonthlyFlow(year: string): Promise<any> {
+    return request<any>(`/dashboard/monthly-flow/${year}`, 'GET');
+  },
+
+  getExpensesByCategory(month: string, year: string): Promise<any> {
+    return request<any>(`/dashboard/expenses-by-category/${month}/${year}`, 'GET');
+  },
+};
+
+export type { User, AuthResponse, SignUpData, SignInData };

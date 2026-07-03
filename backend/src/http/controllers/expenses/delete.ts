@@ -13,17 +13,13 @@ export async function deleteExpense(
 
   const { id } = deleteExpenseParamsSchema.parse(request.params);
 
-  try {
-    const expenseRepository = new PrismaExpenseRepository();
-    const deleteExpenseService = new DeleteExpenseService(expenseRepository);
+  const expenseRepository = new PrismaExpenseRepository();
+  const deleteExpenseService = new DeleteExpenseService(expenseRepository);
 
-    await deleteExpenseService.execute({
-      id,
-      userId: request.user.sub,
-    });
+  await deleteExpenseService.execute({
+    id,
+    userId: request.user.sub,
+  });
 
-    return reply.status(204).send();
-  } catch (error) {
-    throw error;
-  }
+  return reply.status(204).send();
 }

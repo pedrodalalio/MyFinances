@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   BarChart,
   Bar,
@@ -18,6 +18,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -131,29 +132,12 @@ const HistoryTooltip = ({
 };
 
 export const FiiIncomePanel = () => {
-  const [data, setData] = useState<FiiIncomeData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { data, isPending, isError, refetch } = useQuery<FiiIncomeData>({
+    queryKey: queryKeys.fiiIncome,
+    queryFn: async () => (await api.get("/investments/fii-income")).data,
+  });
 
-  const load = async () => {
-    try {
-      setLoading(true);
-      setError(false);
-      const response = await api.get("/investments/fii-income");
-      setData(response.data);
-    } catch (err) {
-      console.error("Erro ao carregar proventos FII:", err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  if (loading) {
+  if (isPending) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
@@ -171,7 +155,7 @@ export const FiiIncomePanel = () => {
     );
   }
 
-  if (error || !data) {
+  if (isError || !data) {
     return (
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-10 text-center">
@@ -180,7 +164,7 @@ export const FiiIncomePanel = () => {
             Não foi possível buscar os proventos agora. As fontes públicas
             podem estar temporariamente fora do ar.
           </p>
-          <Button variant="outline" onClick={load}>
+          <Button variant="outline" onClick={() => refetch()}>
             <RefreshCw className="mr-2 h-4 w-4" />
             Tentar novamente
           </Button>

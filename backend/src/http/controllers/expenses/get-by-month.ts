@@ -11,20 +11,16 @@ export async function getByMonth(request: FastifyRequest, reply: FastifyReply) {
 
   const { month, year } = getExpensesByMonthParamsSchema.parse(request.params)
 
-  try {
-    const expenseRepository = new PrismaExpenseRepository()
-    const getExpensesByMonthService = new GetExpensesByMonthService(expenseRepository)
+  const expenseRepository = new PrismaExpenseRepository()
+  const getExpensesByMonthService = new GetExpensesByMonthService(expenseRepository)
 
-    const { expenses } = await getExpensesByMonthService.execute({
-      userId: request.user.sub,
-      month,
-      year
-    })
+  const { expenses } = await getExpensesByMonthService.execute({
+    userId: request.user.sub,
+    month,
+    year
+  })
 
-    return reply.status(200).send({
-      expenses
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    expenses
+  })
 }

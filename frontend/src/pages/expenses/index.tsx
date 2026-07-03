@@ -4,8 +4,15 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, Wallet, Trash2, Edit, CheckCircle2, Circle } from "lucide-react";
 import { toast } from "sonner";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { invalidateFinancialData, queryKeys } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
@@ -160,10 +167,8 @@ interface Expense {
 }
 
 const ExpensesPage = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [paidKeys, setPaidKeys] = useState<string[]>([]);
+  const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [deletingExpense, setDeletingExpense] = useState<Expense | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState(() => {
@@ -191,8 +196,7 @@ const ExpensesPage = () => {
 
   useEffect(() => {
     document.title = "Gastos | MyFinances";
-    loadExpenses();
-  }, [selectedPeriod]);
+  }, []);
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
@@ -217,19 +221,47 @@ const ExpensesPage = () => {
     (formStartYear + i).toString(),
   );
 
-  const loadExpenses = async () => {
-    try {
-      const month = selectedMonth.toString().padStart(2, "0");
-      const [expensesResponse, checksResponse] = await Promise.all([
-        api.get(`/expenses/${month}/${selectedYear}`),
-        api.get(`/payment-checks/${month}/${selectedYear}`),
-      ]);
-      setExpenses(expensesResponse.data.expenses || []);
-      setPaidKeys(checksResponse.data.checks || []);
-    } catch (error) {
-      console.error("Erro ao carregar gastos:", error);
-      toast.error("Não foi possível carregar os gastos. Tente novamente.");
-    }
+  const selectedMonthStr = selectedMonth.toString().padStart(2, "0");
+
+  // placeholderData mantém os dados do mês anterior na tela enquanto o novo
+  // mês carrega (evita piscar o estado vazio ao trocar de período).
+  const expensesQuery = useQuery({
+    queryKey: queryKeys.expenses(selectedMonthStr, selectedYear),
+    queryFn: async () => {
+      const response = await api.get(
+        `/expenses/${selectedMonthStr}/${selectedYear}`,
+      );
+      return (response.data.expenses || []) as Expense[];
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  const checksQuery = useQuery({
+    queryKey: queryKeys.paymentChecks(selectedMonthStr, selectedYear),
+    queryFn: async () => {
+      const response = await api.get(
+        `/payment-checks/${selectedMonthStr}/${selectedYear}`,
+      );
+      return (response.data.checks || []) as string[];
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  const expenses = expensesQuery.data ?? [];
+  const paidKeys = checksQuery.data ?? [];
+  const isError = expensesQuery.isError || checksQuery.isError;
+
+  const retry = () => {
+    expensesQuery.refetch();
+    checksQuery.refetch();
+  };
+
+  // Invalida os gastos de todos os meses (fixos aparecem em vários), o recurso
+  // de recorrentes e tudo que deriva do saldo.
+  const invalidateExpenses = () => {
+    queryClient.invalidateQueries({ queryKey: ["expenses"] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.recurringExpenses });
+    invalidateFinancialData();
   };
 
   // Checklist de pagamentos: a chave usa o id do template do gasto fixo, então
@@ -238,45 +270,76 @@ const ExpensesPage = () => {
 
   const isPaid = (expense: Expense) => paidKeys.includes(paymentKey(expense));
 
-  const togglePaid = async (expense: Expense) => {
-    const key = paymentKey(expense);
-    const paid = !paidKeys.includes(key);
-
-    setPaidKeys((keys) =>
-      paid ? [...keys, key] : keys.filter((k) => k !== key),
-    );
-
-    try {
-      await api.put("/payment-checks", {
+  const togglePaidMutation = useMutation({
+    mutationFn: ({ key, paid }: { key: string; paid: boolean }) =>
+      api.put("/payment-checks", {
         item_key: key,
-        month: selectedMonth.toString().padStart(2, "0"),
+        month: selectedMonthStr,
         year: selectedYear,
         paid,
-      });
-    } catch (error) {
-      console.error("Erro ao marcar pagamento:", error);
-      toast.error("Não foi possível salvar a marcação de pagamento.");
-      setPaidKeys((keys) =>
-        paid ? keys.filter((k) => k !== key) : [...keys, key],
+      }),
+    // Atualização otimista: marca/desmarca na hora e desfaz se a API falhar
+    onMutate: async ({ key, paid }) => {
+      const queryKey = queryKeys.paymentChecks(selectedMonthStr, selectedYear);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<string[]>(queryKey);
+      queryClient.setQueryData<string[]>(queryKey, (old = []) =>
+        paid ? [...old, key] : old.filter((k) => k !== key),
       );
-    }
+      return { previous, queryKey };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(context.queryKey, context.previous);
+      }
+      toast.error("Não foi possível salvar a marcação de pagamento.");
+    },
+    onSettled: (_data, _error, _variables, context) => {
+      if (context) {
+        queryClient.invalidateQueries({ queryKey: context.queryKey });
+      }
+    },
+  });
+
+  const togglePaid = (expense: Expense) => {
+    const key = paymentKey(expense);
+    togglePaidMutation.mutate({ key, paid: !paidKeys.includes(key) });
   };
 
-  const onSubmit = async (values: ExpenseFormValues) => {
-    if (editingExpense) {
-      await updateExpense(values);
-    } else {
-      await createExpense(values);
-    }
-  };
-
-  const createExpense = async (values: ExpenseFormValues) => {
-    setLoading(true);
-    try {
+  const saveExpenseMutation = useMutation({
+    mutationFn: async (values: ExpenseFormValues) => {
       const [yearStr, monthStr, dayStr] = values.date.split("-");
       const amount = Math.round(parseFloat(values.amount) * 100) / 100;
 
-      if (values.is_recurring) {
+      if (editingExpense) {
+        if (editingExpense.is_recurring && editingExpense.recurring_id) {
+          // Edição de gasto fixo: vale do mês selecionado em diante (versionamento).
+          // Término vazio = remove o limite (null); preenchido = novo fim.
+          await api.put(`/recurring-expenses/${editingExpense.recurring_id}`, {
+            effective_month: selectedMonthStr,
+            effective_year: selectedYear,
+            name: values.name,
+            description: values.description,
+            amount,
+            payment_method: values.payment_method,
+            category: values.category,
+            day_of_month: parseInt(dayStr),
+            end_month: values.end_month || null,
+            end_year: values.end_year ? parseInt(values.end_year) : null,
+          });
+        } else {
+          await api.put(`/expenses/${editingExpense.id}`, {
+            name: values.name,
+            description: values.description,
+            amount,
+            payment_method: values.payment_method,
+            category: values.category,
+            month: monthStr,
+            year: parseInt(yearStr),
+            date: values.date,
+          });
+        }
+      } else if (values.is_recurring) {
         await api.post("/recurring-expenses", {
           name: values.name,
           description: values.description,
@@ -301,16 +364,24 @@ const ExpensesPage = () => {
           date: values.date,
         });
       }
-
+    },
+    onSuccess: () => {
       closeDialog();
-      loadExpenses();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao criar gasto:", error);
-      toast.error("Não foi possível salvar o gasto.");
-    } finally {
-      setLoading(false);
-    }
+      invalidateExpenses();
+    },
+    onError: () => {
+      toast.error(
+        editingExpense
+          ? "Não foi possível atualizar o gasto."
+          : "Não foi possível salvar o gasto.",
+      );
+    },
+  });
+
+  const loading = saveExpenseMutation.isPending;
+
+  const onSubmit = (values: ExpenseFormValues) => {
+    saveExpenseMutation.mutate(values);
   };
 
   const editExpense = (expense: Expense) => {
@@ -331,73 +402,24 @@ const ExpensesPage = () => {
     setIsDialogOpen(true);
   };
 
-  const updateExpense = async (values: ExpenseFormValues) => {
-    if (!editingExpense) return;
-
-    setLoading(true);
-    try {
-      const [yearStr, monthStr, dayStr] = values.date.split("-");
-      const amount = Math.round(parseFloat(values.amount) * 100) / 100;
-
-      if (editingExpense.is_recurring && editingExpense.recurring_id) {
-        // Edição de gasto fixo: vale do mês selecionado em diante (versionamento).
-        // Término vazio = remove o limite (null); preenchido = novo fim.
-        await api.put(`/recurring-expenses/${editingExpense.recurring_id}`, {
-          effective_month: selectedMonth.toString().padStart(2, "0"),
-          effective_year: selectedYear,
-          name: values.name,
-          description: values.description,
-          amount,
-          payment_method: values.payment_method,
-          category: values.category,
-          day_of_month: parseInt(dayStr),
-          end_month: values.end_month || null,
-          end_year: values.end_year ? parseInt(values.end_year) : null,
-        });
-      } else {
-        await api.put(`/expenses/${editingExpense.id}`, {
-          name: values.name,
-          description: values.description,
-          amount,
-          payment_method: values.payment_method,
-          category: values.category,
-          month: monthStr,
-          year: parseInt(yearStr),
-          date: values.date,
-        });
-      }
-
-      closeDialog();
-      loadExpenses();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao atualizar gasto:", error);
-      toast.error("Não foi possível atualizar o gasto.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteExpense = async (expense: Expense) => {
-    try {
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async (expense: Expense) => {
       if (expense.is_recurring && expense.recurring_id) {
         // Exclusão de gasto fixo: encerra a partir do mês selecionado.
-        const month = selectedMonth.toString().padStart(2, "0");
         await api.delete(
-          `/recurring-expenses/${expense.recurring_id}?month=${month}&year=${selectedYear}`,
+          `/recurring-expenses/${expense.recurring_id}?month=${selectedMonthStr}&year=${selectedYear}`,
         );
       } else {
         await api.delete(`/expenses/${expense.id}`);
       }
-      loadExpenses();
-      refreshBalanceSummary();
-    } catch (error) {
-      console.error("Erro ao deletar gasto:", error);
-      toast.error("Não foi possível excluir o gasto.");
-    } finally {
-      setDeletingExpense(null);
-    }
-  };
+    },
+    onSuccess: invalidateExpenses,
+    onError: () => toast.error("Não foi possível excluir o gasto."),
+    onSettled: () => setDeletingExpense(null),
+  });
+
+  const deleteExpense = (expense: Expense) =>
+    deleteExpenseMutation.mutate(expense);
 
   const getPaymentMethodLabel = (method: string) => {
     const paymentMethod = paymentMethods.find((p) => p.value === method);
@@ -724,7 +746,7 @@ const ExpensesPage = () => {
       </div>
 
       {/* Total de gastos do mês */}
-      {expenses.length > 0 && (
+      {!isError && expenses.length > 0 && (
         <Card className="border-destructive/20 bg-destructive/[0.03]">
           <CardContent className="flex items-center justify-between py-4">
             <div className="flex items-center gap-2.5">
@@ -748,7 +770,9 @@ const ExpensesPage = () => {
       )}
 
       <div className="grid gap-4">
-        {expenses.length === 0 ? (
+        {isError ? (
+          <QueryError onRetry={retry} />
+        ) : expenses.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Wallet className="h-12 w-12 text-muted-foreground mb-4" />

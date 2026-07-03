@@ -12,10 +12,5 @@ export async function usersRoutes(app: FastifyInstance) {
   app.post("/auth/login", authenticate)
   app.post("/auth/logout", logout)
   app.get("/auth/profile", { onRequest: [verifyJWT] }, profile)
-
-  // Legacy routes (can be removed later)
-  app.post("/users", register)
-  app.post("/sessions", authenticate)
   app.patch("/token/refresh", refresh)
-  app.get('/me', { onRequest: [verifyJWT] }, profile)
 }

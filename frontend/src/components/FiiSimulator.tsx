@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   LineChart,
   Line,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/utils/api";
+import { queryKeys } from "@/lib/query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -209,8 +211,6 @@ const SimTooltip = ({
 };
 
 export const FiiSimulator = () => {
-  const [data, setData] = useState<FiiIncomeData | null>(null);
-  const [quotes, setQuotes] = useState<Record<string, number>>({});
   const [mode, setMode] = useState<"valor" | "cotas">("valor");
   const [contribution, setContribution] = useState("500");
   const [years, setYears] = useState("10");
@@ -225,38 +225,57 @@ export const FiiSimulator = () => {
     Array<{ ticker: string; price: number; dividend: number }>
   >([]);
   const [lookupTicker, setLookupTicker] = useState("");
-  const [lookingUp, setLookingUp] = useState(false);
+
+  const incomeQuery = useQuery<FiiIncomeData>({
+    queryKey: queryKeys.fiiIncome,
+    queryFn: async () => (await api.get("/investments/fii-income")).data,
+  });
+  const data = incomeQuery.data ?? null;
+
+  // Cotação atual pra precificar as compras do modo por cotas
+  const quotesQuery = useQuery<{
+    quotes: Array<{ ticker: string; price: number }>;
+  }>({
+    queryKey: ["investment-quotes"],
+    queryFn: async () => (await api.get("/investments/quotes")).data,
+  });
+
+  const quotes = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const quote of quotesQuery.data?.quotes ?? []) {
+      map[quote.ticker] = quote.price;
+    }
+    return map;
+  }, [quotesQuery.data]);
+
+  // Defaults que dependem dos dados: só na primeira carga, pra não
+  // sobrescrever escolhas do usuário num eventual refetch
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!data || initializedRef.current) return;
+    initializedRef.current = true;
+    if (!data.funds?.length) {
+      setYieldBase("custom");
+      setIncludePortfolio(false);
+    } else {
+      // Começa comprando 1 cota de cada fundo por mês
+      setBuyQuantities(
+        Object.fromEntries(data.funds.map((f) => [f.ticker, "1"])),
+      );
+    }
+  }, [data]);
 
   useEffect(() => {
-    api
-      .get("/investments/fii-income")
-      .then((response) => {
-        const incomeData: FiiIncomeData = response.data;
-        setData(incomeData);
-        if (!incomeData?.funds?.length) {
-          setYieldBase("custom");
-          setIncludePortfolio(false);
-        } else {
-          // Começa comprando 1 cota de cada fundo por mês
-          setBuyQuantities(
-            Object.fromEntries(incomeData.funds.map((f) => [f.ticker, "1"])),
-          );
-        }
-      })
-      .catch((err) => console.error("Erro ao carregar dados FII:", err));
+    if (incomeQuery.isError)
+      toast.error("Não foi possível carregar seus FIIs para a simulação.");
+  }, [incomeQuery.isError]);
 
-    // Cotação atual pra precificar as compras do modo por cotas
-    api
-      .get("/investments/quotes")
-      .then((response) => {
-        const map: Record<string, number> = {};
-        for (const quote of response.data?.quotes ?? []) {
-          map[quote.ticker] = quote.price;
-        }
-        setQuotes(map);
-      })
-      .catch((err) => console.error("Erro ao carregar cotações:", err));
-  }, []);
+  useEffect(() => {
+    if (quotesQuery.isError)
+      toast.error(
+        "Não foi possível carregar as cotações. Usando o preço médio pago.",
+      );
+  }, [quotesQuery.isError]);
 
   const annualYield = useMemo(() => {
     if (yieldBase === "custom") return parseFloat(customYield) || 0;
@@ -267,21 +286,12 @@ export const FiiSimulator = () => {
 
   const totalMonths = (parseInt(years) || 1) * 12;
 
-  const addExtraFund = async () => {
-    const ticker = lookupTicker.trim().toUpperCase();
-    if (!ticker) return;
-    if (
-      data?.funds.some((f) => f.ticker === ticker) ||
-      extraFunds.some((f) => f.ticker === ticker)
-    ) {
-      toast.error(`${ticker} já está na simulação.`);
-      return;
-    }
-
-    setLookingUp(true);
-    try {
+  const lookupMutation = useMutation({
+    mutationFn: async (ticker: string) => {
       const response = await api.get(`/investments/fii-lookup/${ticker}`);
-      const { price, avg_per_share_12m } = response.data;
+      return response.data as { price?: number; avg_per_share_12m?: number };
+    },
+    onSuccess: ({ price, avg_per_share_12m }, ticker) => {
       if (!price || !avg_per_share_12m) {
         toast.error(
           `Achei o ${ticker}, mas sem ${!price ? "cotação" : "histórico de proventos"} disponível.`,
@@ -294,7 +304,8 @@ export const FiiSimulator = () => {
       ]);
       setBuyQuantities((prev) => ({ ...prev, [ticker]: "1" }));
       setLookupTicker("");
-    } catch (error: unknown) {
+    },
+    onError: (error: unknown, ticker) => {
       const status = (error as { response?: { status?: number } })?.response
         ?.status;
       toast.error(
@@ -302,9 +313,21 @@ export const FiiSimulator = () => {
           ? `Não encontrei proventos para ${ticker}. Confira o ticker.`
           : "Não foi possível buscar o FII agora. Tente novamente.",
       );
-    } finally {
-      setLookingUp(false);
+    },
+  });
+  const lookingUp = lookupMutation.isPending;
+
+  const addExtraFund = () => {
+    const ticker = lookupTicker.trim().toUpperCase();
+    if (!ticker || lookingUp) return;
+    if (
+      data?.funds.some((f) => f.ticker === ticker) ||
+      extraFunds.some((f) => f.ticker === ticker)
+    ) {
+      toast.error(`${ticker} já está na simulação.`);
+      return;
     }
+    lookupMutation.mutate(ticker);
   };
 
   const removeExtraFund = (ticker: string) => {

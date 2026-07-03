@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TrendingUp,
@@ -14,12 +14,14 @@ import {
   Trash2,
   RefreshCw,
 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
-import { refreshBalanceSummary } from "@/components/BalanceSummary";
+import { queryKeys, invalidateFinancialData } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { ExpenseDonutChart } from "@/components/ExpenseDonutChart";
 import { Button } from "@/components/ui/button";
 import {
@@ -117,13 +119,9 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
   year,
 }) => {
   const navigate = useNavigate();
-  const [overview, setOverview] = useState<FinancialOverviewData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isAddMoneyDialogOpen, setIsAddMoneyDialogOpen] = useState(false);
   const [isEditMoneyDialogOpen, setIsEditMoneyDialogOpen] = useState(false);
-  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
-  const [paidKeys, setPaidKeys] = useState<string[]>([]);
   const [isPendingDialogOpen, setIsPendingDialogOpen] = useState(false);
   const addMoneyForm = useForm<AddMoneyFormValues>({
     resolver: zodResolver(addMoneySchema),
@@ -139,134 +137,154 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
     },
   });
 
-  useEffect(() => {
-    refreshOverview();
-    loadChecklist();
-  }, [month, year]);
+  const {
+    data: overview,
+    isPending: isOverviewPending,
+    isError: isOverviewError,
+    refetch: refetchOverview,
+  } = useQuery({
+    queryKey: queryKeys.financialOverview(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/financial-overview/${month}/${year}`);
+      return response.data.overview as FinancialOverviewData;
+    },
+  });
 
   // Checklist de pagamentos do mês: gastos fixos + impostos, com marcação
   // manual de "pago" — evita fechar o mês esquecendo algum pagamento mensal.
-  const loadChecklist = async () => {
-    try {
-      const [expensesRes, taxesRes, checksRes] = await Promise.all([
-        api.get(`/expenses/${month}/${year}`),
-        api.get(`/taxes/${month}/${year}`),
-        api.get(`/payment-checks/${month}/${year}`),
-      ]);
+  const expensesQuery = useQuery({
+    queryKey: queryKeys.expenses(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/expenses/${month}/${year}`);
+      return (response.data.expenses || []) as Array<{
+        is_recurring?: boolean;
+        recurring_id?: string;
+        name: string;
+        amount: string;
+      }>;
+    },
+  });
 
-      const recurringItems: ChecklistItem[] = (
-        expensesRes.data.expenses || []
-      )
-        .filter(
-          (expense: { is_recurring?: boolean; recurring_id?: string }) =>
-            expense.is_recurring && expense.recurring_id,
-        )
-        .map(
-          (expense: {
-            recurring_id: string;
-            name: string;
-            amount: string;
-          }) => ({
-            key: `rec_${expense.recurring_id}`,
-            label: expense.name,
-            amount: parseFloat(expense.amount),
-          }),
-        );
+  const taxesQuery = useQuery({
+    queryKey: queryKeys.taxes(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/taxes/${month}/${year}`);
+      return (response.data.taxes || []) as Array<{
+        id: string;
+        tax_type: string;
+        amount: string;
+      }>;
+    },
+  });
 
-      const taxItems: ChecklistItem[] = (taxesRes.data.taxes || []).map(
-        (tax: { id: string; tax_type: string; amount: string }) => ({
-          key: `tax_${tax.id}`,
-          label: `Imposto ${tax.tax_type}`,
-          amount: parseFloat(tax.amount),
-        }),
-      );
+  const checksQuery = useQuery({
+    queryKey: queryKeys.paymentChecks(month, year),
+    queryFn: async () => {
+      const response = await api.get(`/payment-checks/${month}/${year}`);
+      return (response.data.checks || []) as string[];
+    },
+  });
 
-      setChecklistItems([...recurringItems, ...taxItems]);
-      setPaidKeys(checksRes.data.checks || []);
-    } catch (error) {
-      console.error("Erro ao carregar checklist de pagamentos:", error);
-    }
-  };
+  const checklistItems = useMemo<ChecklistItem[]>(() => {
+    const recurringItems: ChecklistItem[] = (expensesQuery.data ?? [])
+      .filter((expense) => expense.is_recurring && expense.recurring_id)
+      .map((expense) => ({
+        key: `rec_${expense.recurring_id}`,
+        label: expense.name,
+        amount: parseFloat(expense.amount),
+      }));
 
-  const togglePaid = async (key: string) => {
-    const paid = !paidKeys.includes(key);
+    const taxItems: ChecklistItem[] = (taxesQuery.data ?? []).map((tax) => ({
+      key: `tax_${tax.id}`,
+      label: `Imposto ${tax.tax_type}`,
+      amount: parseFloat(tax.amount),
+    }));
 
-    setPaidKeys((keys) =>
-      paid ? [...keys, key] : keys.filter((k) => k !== key),
-    );
+    return [...recurringItems, ...taxItems];
+  }, [expensesQuery.data, taxesQuery.data]);
 
-    try {
-      await api.put("/payment-checks", {
+  const paidKeys = checksQuery.data ?? [];
+
+  // Marca/desmarca "pago" com atualização otimista no cache e rollback em erro.
+  const togglePaidMutation = useMutation({
+    mutationFn: ({ key, paid }: { key: string; paid: boolean }) =>
+      api.put("/payment-checks", {
         item_key: key,
         month,
         year,
         paid,
-      });
-    } catch (error) {
-      console.error("Erro ao marcar pagamento:", error);
-      setPaidKeys((keys) =>
-        paid ? keys.filter((k) => k !== key) : [...keys, key],
+      }),
+    onMutate: async ({ key, paid }) => {
+      const checksKey = queryKeys.paymentChecks(month, year);
+      await queryClient.cancelQueries({ queryKey: checksKey });
+      const previousChecks = queryClient.getQueryData<string[]>(checksKey);
+      queryClient.setQueryData<string[]>(checksKey, (keys = []) =>
+        paid ? [...keys, key] : keys.filter((k) => k !== key),
       );
-    }
+      return { previousChecks };
+    },
+    onError: (_error, _variables, context) => {
+      queryClient.setQueryData(
+        queryKeys.paymentChecks(month, year),
+        context?.previousChecks ?? [],
+      );
+      toast.error("Erro ao marcar pagamento");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.paymentChecks(month, year),
+      });
+    },
+  });
+
+  const togglePaid = (key: string) => {
+    togglePaidMutation.mutate({ key, paid: !paidKeys.includes(key) });
   };
 
   const pendingItems = checklistItems.filter(
     (item) => !paidKeys.includes(item.key),
   );
 
-  const refreshOverview = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await api.get(`/financial-overview/${month}/${year}`);
-      setOverview(response.data.overview);
-      refreshBalanceSummary();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
-    } finally {
-      setLoading(false);
-    }
+  // Alterações na conta corrente mexem no saldo: invalida o overview do mês
+  // e todo o estado financeiro derivado.
+  const invalidateOverviewData = () => {
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.financialOverview(month, year),
+    });
+    invalidateFinancialData();
   };
 
-  const onSubmitAddMoney = async (values: AddMoneyFormValues) => {
-    try {
-      await api.put(`/financial-data/${month}/${year}`, {
-        checking_account: parseFloat(values.amount),
-      });
+  const updateCheckingAccountMutation = useMutation({
+    mutationFn: (amount: number) =>
+      api.put(`/financial-data/${month}/${year}`, {
+        checking_account: amount,
+      }),
+    onSuccess: invalidateOverviewData,
+    onError: () => {
+      toast.error("Erro ao atualizar a conta corrente");
+    },
+  });
 
-      setIsAddMoneyDialogOpen(false);
-      addMoneyForm.reset();
-      await refreshOverview();
-    } catch (error) {
-      console.error("Erro ao adicionar dinheiro:", error);
-    }
+  const onSubmitAddMoney = (values: AddMoneyFormValues) => {
+    updateCheckingAccountMutation.mutate(parseFloat(values.amount), {
+      onSuccess: () => {
+        setIsAddMoneyDialogOpen(false);
+        addMoneyForm.reset();
+      },
+    });
   };
 
-  const onSubmitEditMoney = async (values: AddMoneyFormValues) => {
-    try {
-      await api.put(`/financial-data/${month}/${year}`, {
-        checking_account: parseFloat(values.amount),
-      });
-
-      setIsEditMoneyDialogOpen(false);
-      editMoneyForm.reset();
-      await refreshOverview();
-    } catch (error) {
-      console.error("Erro ao editar dinheiro:", error);
-    }
+  const onSubmitEditMoney = (values: AddMoneyFormValues) => {
+    updateCheckingAccountMutation.mutate(parseFloat(values.amount), {
+      onSuccess: () => {
+        setIsEditMoneyDialogOpen(false);
+        editMoneyForm.reset();
+      },
+    });
   };
 
-  const onRemoveMoney = async () => {
-    try {
-      await api.put(`/financial-data/${month}/${year}`, {
-        checking_account: 0,
-      });
-
-      await refreshOverview();
-    } catch (error) {
-      console.error("Erro ao remover dinheiro:", error);
-    }
+  const onRemoveMoney = () => {
+    updateCheckingAccountMutation.mutate(0);
   };
 
   const handleEditMoney = () => {
@@ -279,27 +297,27 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
     }
   };
 
-  const doConfirmMonth = async () => {
-    try {
-      await api.post(`/financial-data/confirm-month/${month}/${year}`);
-      await refreshOverview();
-    } catch (error) {
-      console.error("Erro ao confirmar mês:", error);
-    }
-  };
+  const confirmMonthMutation = useMutation({
+    mutationFn: () =>
+      api.post(`/financial-data/confirm-month/${month}/${year}`),
+    onSuccess: invalidateOverviewData,
+    onError: () => {
+      toast.error("Erro ao confirmar o mês");
+    },
+  });
 
   // Se ainda há pagamentos não marcados como pagos, pede confirmação antes
   // de fechar o mês — é o lembrete contra pagamentos esquecidos.
-  const handleConfirmMonth = async () => {
+  const handleConfirmMonth = () => {
     if (pendingItems.length > 0) {
       setIsPendingDialogOpen(true);
       return;
     }
-    await doConfirmMonth();
+    confirmMonthMutation.mutate();
   };
 
 
-  if (loading) {
+  if (isOverviewPending) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[...Array(4)].map((_, i) => (
@@ -317,12 +335,16 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
     );
   }
 
-  if (error || !overview) {
+  if (isOverviewError) {
+    return <QueryError onRetry={() => refetchOverview()} />;
+  }
+
+  if (!overview) {
     return (
       <Card>
         <CardContent className="p-6">
           <div className="text-center text-destructive">
-            {error || "Dados não encontrados"}
+            Dados não encontrados
           </div>
         </CardContent>
       </Card>
@@ -696,6 +718,23 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
               </div>
             )}
 
+            {/* Erro ao carregar o checklist de pagamentos */}
+            {!financial_data.is_confirmed &&
+              (expensesQuery.isError ||
+                taxesQuery.isError ||
+                checksQuery.isError) && (
+                <div className="pt-4 border-t">
+                  <QueryError
+                    message="Não foi possível carregar os pagamentos do mês."
+                    onRetry={() => {
+                      if (expensesQuery.isError) expensesQuery.refetch();
+                      if (taxesQuery.isError) taxesQuery.refetch();
+                      if (checksQuery.isError) checksQuery.refetch();
+                    }}
+                  />
+                </div>
+              )}
+
             {/* Checklist de pagamentos do mês */}
             {checklistItems.length > 0 && !financial_data.is_confirmed && (
               <div className="pt-4 border-t">
@@ -955,7 +994,7 @@ export const FinancialOverview: React.FC<FinancialOverviewProps> = ({
             <AlertDialogAction
               onClick={() => {
                 setIsPendingDialogOpen(false);
-                doConfirmMonth();
+                confirmMonthMutation.mutate();
               }}
             >
               Fechar mês assim mesmo

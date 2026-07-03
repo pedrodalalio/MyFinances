@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Plus, DollarSign, Calendar, TrendingUp, Pencil, Trash2 } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { api } from "@/utils/api";
+import { queryKeys, invalidateFinancialData } from "@/lib/query";
+import QueryError from "@/components/QueryError";
 
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/PageHeader";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -20,8 +23,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -94,17 +96,13 @@ interface CurrentSalary {
 }
 
 const SettingsPage = () => {
-  const [salaryProfiles, setSalaryProfiles] = useState<SalaryProfile[]>([]);
-  const [currentSalary, setCurrentSalary] = useState<SalaryProfile | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<SalaryProfile | null>(null);
   const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     document.title = "Configurações | MyFinances";
-    loadSalaryProfiles();
-    loadCurrentSalary();
   }, []);
 
   const form = useForm<SalaryProfileFormValues>({
@@ -117,23 +115,71 @@ const SettingsPage = () => {
     },
   });
 
-  const loadSalaryProfiles = async () => {
-    try {
+  const profilesQuery = useQuery({
+    queryKey: queryKeys.salaryProfiles,
+    queryFn: async () => {
       const response = await api.get("/salary/profiles");
-      setSalaryProfiles(response.data.salaryProfiles || []);
-    } catch (error) {
-      console.error("Erro ao carregar perfis salariais:", error);
-    }
+      return (response.data.salaryProfiles || []) as SalaryProfile[];
+    },
+  });
+
+  const currentSalaryQuery = useQuery({
+    queryKey: ["current-salary"],
+    queryFn: async () => {
+      const response = await api.get<CurrentSalary>("/salary/current");
+      return response.data.currentSalary;
+    },
+  });
+
+  const salaryProfiles = profilesQuery.data ?? [];
+  const currentSalary = currentSalaryQuery.data ?? null;
+
+  // Salário altera receita/saldo derivados: invalida as keys do recurso e o
+  // estado financeiro global.
+  const invalidateSalaryData = () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.salaryProfiles });
+    queryClient.invalidateQueries({ queryKey: ["current-salary"] });
+    invalidateFinancialData();
   };
 
-  const loadCurrentSalary = async () => {
-    try {
-      const response = await api.get<CurrentSalary>("/salary/current");
-      setCurrentSalary(response.data.currentSalary);
-    } catch (error) {
-      console.error("Erro ao carregar salário atual:", error);
-    }
-  };
+  const saveProfileMutation = useMutation({
+    mutationFn: async (values: SalaryProfileFormValues) => {
+      const requestBody = {
+        amount: Math.round(parseFloat(values.amount) * 100) / 100,
+        description: values.description,
+        start_date: values.start_date,
+        end_date: values.end_date || undefined,
+      };
+
+      if (editingProfile) {
+        await api.put(`/salary/profiles/${editingProfile.id}`, requestBody);
+      } else {
+        await api.post("/salary/profiles", requestBody);
+      }
+    },
+    onSuccess: () => {
+      setIsDialogOpen(false);
+      setEditingProfile(null);
+      form.reset();
+      invalidateSalaryData();
+    },
+    onError: () => {
+      toast.error("Erro ao salvar perfil salarial");
+    },
+  });
+
+  const deleteProfileMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/salary/profiles/${id}`),
+    onSuccess: () => {
+      setDeletingProfileId(null);
+      invalidateSalaryData();
+    },
+    onError: () => {
+      toast.error("Erro ao apagar perfil salarial");
+    },
+  });
+
+  const loading = saveProfileMutation.isPending || deleteProfileMutation.isPending;
 
   const openCreateDialog = () => {
     setEditingProfile(null);
@@ -157,48 +203,32 @@ const SettingsPage = () => {
     setIsDialogOpen(true);
   };
 
-  const onSubmit = async (values: SalaryProfileFormValues) => {
-    setLoading(true);
-    try {
-      const requestBody = {
-        amount: Math.round(parseFloat(values.amount) * 100) / 100,
-        description: values.description,
-        start_date: values.start_date,
-        end_date: values.end_date || undefined,
-      };
-
-      if (editingProfile) {
-        await api.put(`/salary/profiles/${editingProfile.id}`, requestBody);
-      } else {
-        await api.post("/salary/profiles", requestBody);
-      }
-
-      setIsDialogOpen(false);
-      setEditingProfile(null);
-      form.reset();
-      loadSalaryProfiles();
-      loadCurrentSalary();
-    } catch (error) {
-      console.error("Erro ao salvar perfil salarial:", error);
-    } finally {
-      setLoading(false);
-    }
+  const onSubmit = (values: SalaryProfileFormValues) => {
+    saveProfileMutation.mutate(values);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     if (!deletingProfileId) return;
-    setLoading(true);
-    try {
-      await api.delete(`/salary/profiles/${deletingProfileId}`);
-      setDeletingProfileId(null);
-      loadSalaryProfiles();
-      loadCurrentSalary();
-    } catch (error) {
-      console.error("Erro ao apagar perfil salarial:", error);
-    } finally {
-      setLoading(false);
-    }
+    deleteProfileMutation.mutate(deletingProfileId);
   };
+
+  if (profilesQuery.isError || currentSalaryQuery.isError) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          eyebrow="Conta"
+          title="Configurações"
+          description="Ajuste perfis salariais, preferências e dados da sua conta."
+        />
+        <QueryError
+          onRetry={() => {
+            if (profilesQuery.isError) profilesQuery.refetch();
+            if (currentSalaryQuery.isError) currentSalaryQuery.refetch();
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

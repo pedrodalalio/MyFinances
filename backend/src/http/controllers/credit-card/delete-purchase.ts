@@ -9,16 +9,12 @@ export async function deletePurchase(request: FastifyRequest, reply: FastifyRepl
 
   const { id } = deletePurchaseParamsSchema.parse(request.params)
 
-  try {
-    const deleteCreditCardPurchaseService = makeDeleteCreditCardPurchaseService()
+  const deleteCreditCardPurchaseService = makeDeleteCreditCardPurchaseService()
 
-    await deleteCreditCardPurchaseService.execute({
-      purchaseId: id,
-      userId: request.user.sub
-    })
+  await deleteCreditCardPurchaseService.execute({
+    purchaseId: id,
+    userId: request.user.sub
+  })
 
-    return reply.status(204).send()
-  } catch (error) {
-    throw error
-  }
+  return reply.status(204).send()
 }

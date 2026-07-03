@@ -11,24 +11,20 @@ export async function listInstallments(request: FastifyRequest, reply: FastifyRe
 
   const { purchaseId } = listInstallmentsParamsSchema.parse(request.params)
 
-  try {
-    const creditCardInstallmentsRepository = new PrismaCreditCardInstallmentsRepository()
-    const creditCardPurchasesRepository = new PrismaCreditCardPurchasesRepository()
+  const creditCardInstallmentsRepository = new PrismaCreditCardInstallmentsRepository()
+  const creditCardPurchasesRepository = new PrismaCreditCardPurchasesRepository()
 
-    const listInstallmentsByPurchaseService = new ListInstallmentsByPurchaseService(
-      creditCardInstallmentsRepository,
-      creditCardPurchasesRepository
-    )
+  const listInstallmentsByPurchaseService = new ListInstallmentsByPurchaseService(
+    creditCardInstallmentsRepository,
+    creditCardPurchasesRepository
+  )
 
-    const { installments } = await listInstallmentsByPurchaseService.execute({
-      purchaseId,
-      userId: request.user.sub
-    })
+  const { installments } = await listInstallmentsByPurchaseService.execute({
+    purchaseId,
+    userId: request.user.sub
+  })
 
-    return reply.status(200).send({
-      installments
-    })
-  } catch (error) {
-    throw error
-  }
+  return reply.status(200).send({
+    installments
+  })
 }
