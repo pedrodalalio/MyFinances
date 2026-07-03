@@ -1,11 +1,27 @@
 import axios from 'axios';
 
+// Access token mantido apenas em memória (nunca em localStorage, para não
+// ficar exposto a XSS). A sessão persiste pelo refresh token em cookie
+// httpOnly: ao recarregar a página, o AuthProvider chama /token/refresh para
+// obter um novo access token.
+let accessToken: string | null = null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+
 // Configuração base do axios
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
   timeout: 10000,
   withCredentials: true, // Include cookies for refresh token
 });
+
+const REFRESH_URL = '/token/refresh';
 
 // Variable to track if we're currently refreshing token to avoid multiple refresh calls
 let isRefreshing = false;
@@ -28,9 +44,8 @@ const processQueue = (error: any, token: string | null = null) => {
 
 // Interceptor para adicionar o token automaticamente
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
   return config;
 });
@@ -40,6 +55,11 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // Falha do próprio refresh nunca dispara outro refresh (evita loop)
+    if (originalRequest?.url === REFRESH_URL) {
+      return Promise.reject(error);
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -60,12 +80,12 @@ api.interceptors.response.use(
       try {
         // Call refresh endpoint directly to avoid circular dependency
         const refreshResponse = await api({
-          url: '/token/refresh',
+          url: REFRESH_URL,
           method: 'PATCH',
           withCredentials: true,
         });
         const { token } = refreshResponse.data;
-        localStorage.setItem('token', token);
+        setAccessToken(token);
         processQueue(null, token);
 
         // Retry original request with new token
@@ -73,8 +93,10 @@ api.interceptors.response.use(
         return api(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        localStorage.removeItem('token');
-        window.location.href = '/auth/sign-in';
+        setAccessToken(null);
+        if (!window.location.pathname.startsWith('/auth')) {
+          window.location.href = '/auth/sign-in';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

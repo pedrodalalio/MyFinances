@@ -1,3 +1,4 @@
+import { parseDateOnly } from "@/utils/date"
 import { z } from "zod"
 import { FastifyRequest, FastifyReply } from "fastify"
 import { CreateExpenseService } from "@/services/create-expense"
@@ -12,7 +13,7 @@ export async function create(request: FastifyRequest, reply: FastifyReply) {
     category: z.string().optional(),
     month: z.string(),
     year: z.number(),
-    date: z.string().optional().transform(str => str ? new Date(str + "T12:00:00Z") : new Date())
+    date: z.string().optional().transform(str => str ? parseDateOnly(str) : new Date())
   })
 
   const { name, description, amount, payment_method, category, month, year, date } = createExpenseBodySchema.parse(request.body)

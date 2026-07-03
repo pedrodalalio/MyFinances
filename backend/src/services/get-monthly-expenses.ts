@@ -1,6 +1,8 @@
 import { CreditCardInstallmentsRepository } from "@/repositories/credit-card-installments-repository"
 import { CreditCardPurchasesRepository } from "@/repositories/credit-card-purchases-repository"
 import { SalaryProfilesRepository } from "@/repositories/salary-profiles-repository"
+import { isRecurringActive } from "./utils/recurring-expense"
+import { sumAmounts } from "./utils/money"
 
 interface GetMonthlyExpensesServiceRequest {
   userId: string
@@ -46,19 +48,9 @@ export class GetMonthlyExpensesService {
 
     // Buscar gastos recorrentes ativos
     const recurringPurchases = await this.creditCardPurchasesRepository.findManyByUser(userId)
-    const activeRecurringPurchases = recurringPurchases.filter(purchase => {
-      if (!purchase.is_recurring) return false
-
-      const startDate = new Date(purchase.start_year, parseInt(purchase.start_month) - 1)
-      const requestedDate = new Date(year, parseInt(month) - 1)
-
-      if (startDate > requestedDate) return false
-      if (purchase.end_month && purchase.end_year) {
-        const endDate = new Date(purchase.end_year, parseInt(purchase.end_month) - 1)
-        if (endDate < requestedDate) return false
-      }
-      return true
-    })
+    const activeRecurringPurchases = recurringPurchases.filter(
+      (purchase) => purchase.is_recurring && isRecurringActive(purchase, month, year),
+    )
 
     const expenses: MonthlyExpense[] = []
 
@@ -86,8 +78,11 @@ export class GetMonthlyExpensesService {
       })
     })
 
-    // Calcular total
-    const total = expenses.reduce((sum, expense) => sum + expense.amount, 0)
+    // Calcular total em Decimal a partir dos valores originais (os itens de
+    // `expenses` já foram convertidos para number só para exibição)
+    const total = sumAmounts(installments, (i) => i.installment_amount)
+      .add(sumAmounts(activeRecurringPurchases, (p) => p.installment_amount))
+      .toNumber()
 
     // Buscar salário do período
     const requestedDate = new Date(year, parseInt(month) - 1)

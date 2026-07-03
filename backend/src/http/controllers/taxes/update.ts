@@ -1,3 +1,4 @@
+import { parseDateOnly } from "@/utils/date"
 import { z } from "zod"
 import { FastifyRequest, FastifyReply } from "fastify"
 import { UpdateTaxService } from "@/services/update-tax"
@@ -17,7 +18,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     day_of_month: z.number().min(1).max(31).optional(),
     month: z.string().optional(),
     year: z.number().optional(),
-    due_date: z.string().transform(str => str ? new Date(str + "T12:00:00Z") : undefined).optional()
+    due_date: z.string().transform(str => str ? parseDateOnly(str) : undefined).optional()
   })
 
   const { id } = updateTaxParamsSchema.parse(request.params)

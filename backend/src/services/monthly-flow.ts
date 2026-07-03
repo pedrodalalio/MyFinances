@@ -2,6 +2,8 @@ import { ExpenseRepository } from '@/repositories/expense-repository'
 import { InvestmentRepository } from '@/repositories/investment-repository'
 import { SalaryProfilesRepository } from '@/repositories/salary-profiles-repository'
 import { GetMonthlyExpensesService } from './get-monthly-expenses'
+import { formatMonth } from './utils/period'
+import { investmentOutflow, sumAmounts, ZERO } from './utils/money'
 
 interface MonthlyFlowRequest {
   userId: string
@@ -37,55 +39,40 @@ export class MonthlyFlowService {
   ) {}
 
   async execute({ userId, year }: MonthlyFlowRequest): Promise<MonthlyFlowResponse> {
-    const monthlyData: MonthlyData[] = []
     const currentSalary = await this.salaryRepository.findCurrentByUser(userId)
     const monthlyIncome = currentSalary?.amount ? Number(currentSalary.amount) : 0
 
-    let yearTotalIncome = 0
-    let yearTotalExpenses = 0
-    let yearTotalCreditCard = 0
-    let yearTotalInvestments = 0
+    // Buscar os 12 meses em paralelo
+    const months = Array.from({ length: 12 }, (_, i) => formatMonth(i + 1))
+    const monthlyData: MonthlyData[] = await Promise.all(
+      months.map(async (monthStr) => {
+        const [expenses, creditCardData, investments] = await Promise.all([
+          this.expenseRepository.findByMonthAndUser(userId, monthStr, year),
+          this.getMonthlyExpensesService.execute({ userId, month: monthStr, year }),
+          this.investmentRepository.findByMonthAndUser(userId, monthStr, year),
+        ])
 
-    // Generate data for each month
-    for (let month = 1; month <= 12; month++) {
-      const monthStr = month.toString().padStart(2, '0')
+        const monthlyExpenses = sumAmounts(expenses, (e) => e.amount).toNumber()
+        const monthlyCreditCard = creditCardData.total
+        const monthlyInvestments = investments
+          .reduce((sum, investment) => sum.add(investmentOutflow(investment)), ZERO)
+          .toNumber()
 
-      // Get expenses for the month
-      const expenses = await this.expenseRepository.findByMonthAndUser(userId, monthStr, year)
-      const monthlyExpenses = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+        return {
+          month: monthStr,
+          income: monthlyIncome,
+          expenses: monthlyExpenses,
+          creditCard: monthlyCreditCard,
+          investments: monthlyInvestments,
+          balance: monthlyIncome - monthlyExpenses - monthlyCreditCard - monthlyInvestments,
+        }
+      }),
+    )
 
-      // Get credit card expenses for the month
-      const creditCardData = await this.getMonthlyExpensesService.execute({ userId, month: monthStr, year })
-      const monthlyCreditCard = creditCardData.total
-
-      // Get monthly investments
-      const investments = await this.investmentRepository.findByMonthAndUser(userId, monthStr, year)
-      const monthlyInvestments = investments.reduce((sum, investment) => {
-        const amount = Number(investment.amount)
-        const qty = investment.quantity ? Number(investment.quantity) : 1
-        return sum + (investment.investment_type === 'ETF' || investment.investment_type === 'FII' ? amount * qty : amount)
-      }, 0)
-
-      // Calculate balance for the month
-      const monthlyBalance = monthlyIncome - monthlyExpenses - monthlyCreditCard - monthlyInvestments
-
-      const monthData: MonthlyData = {
-        month: monthStr,
-        income: monthlyIncome,
-        expenses: monthlyExpenses,
-        creditCard: monthlyCreditCard,
-        investments: monthlyInvestments,
-        balance: monthlyBalance
-      }
-
-      monthlyData.push(monthData)
-
-      // Add to year totals
-      yearTotalIncome += monthlyIncome
-      yearTotalExpenses += monthlyExpenses
-      yearTotalCreditCard += monthlyCreditCard
-      yearTotalInvestments += monthlyInvestments
-    }
+    const yearTotalIncome = monthlyData.reduce((sum, m) => sum + m.income, 0)
+    const yearTotalExpenses = monthlyData.reduce((sum, m) => sum + m.expenses, 0)
+    const yearTotalCreditCard = monthlyData.reduce((sum, m) => sum + m.creditCard, 0)
+    const yearTotalInvestments = monthlyData.reduce((sum, m) => sum + m.investments, 0)
 
     const yearTotalBalance = yearTotalIncome - yearTotalExpenses - yearTotalCreditCard - yearTotalInvestments
 

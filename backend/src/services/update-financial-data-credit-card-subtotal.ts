@@ -1,6 +1,8 @@
 import { CreditCardInstallmentsRepository } from '@/repositories/credit-card-installments-repository'
 import { CreditCardPurchasesRepository } from '@/repositories/credit-card-purchases-repository'
 import { FinancialDataRepository } from '@/repositories/financial-data-repository'
+import { isRecurringActive } from './utils/recurring-expense'
+import { sumAmounts } from './utils/money'
 
 interface UpdateFinancialDataCreditCardSubtotalServiceRequest {
   userId: string
@@ -25,24 +27,13 @@ export class UpdateFinancialDataCreditCardSubtotalService {
 
     // Buscar gastos recorrentes ativos
     const recurringPurchases = await this.creditCardPurchasesRepository.findManyByUser(userId)
-    const activeRecurringPurchases = recurringPurchases.filter(purchase => {
-      if (!purchase.is_recurring) return false
+    const activeRecurringPurchases = recurringPurchases.filter(
+      (purchase) => purchase.is_recurring && isRecurringActive(purchase, month, year),
+    )
 
-      // Verificar se já estava ativo no período solicitado
-      const startDate = new Date(purchase.start_year, parseInt(purchase.start_month) - 1)
-      const requestedDate = new Date(year, parseInt(month) - 1)
-
-      return startDate <= requestedDate
-    })
-
-    // Calcular total de parcelas
-    const installmentsTotal = installments.reduce((sum, installment) => sum + Number(installment.installment_amount), 0)
-
-    // Calcular total de recorrentes
-    const recurringTotal = activeRecurringPurchases.reduce((sum, purchase) => sum + Number(purchase.installment_amount), 0)
-
-    // Total de cartão de crédito
-    const creditCardSubtotal = installmentsTotal + recurringTotal
+    // Total de cartão de crédito (parcelas + recorrentes), em Decimal
+    const creditCardSubtotal = sumAmounts(installments, (i) => i.installment_amount)
+      .add(sumAmounts(activeRecurringPurchases, (p) => p.installment_amount))
 
     // Buscar ou criar FinancialData para o mês (upsert para evitar race condition)
     let financialData = await this.financialDataRepository.findByUserAndPeriod(userId, month, year)

@@ -1,3 +1,4 @@
+import { parseDateOnly } from "@/utils/date"
 import { z } from "zod"
 import { FastifyRequest, FastifyReply } from "fastify"
 import { UpdateIncomeService } from "@/services/update-income"
@@ -16,7 +17,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     category: z.string().optional(),
     month: z.string().optional(),
     year: z.number().optional(),
-    date: z.string().optional().transform(str => str ? new Date(str + "T12:00:00Z") : undefined)
+    date: z.string().optional().transform(str => str ? parseDateOnly(str) : undefined)
   })
 
   const { id } = updateIncomeParamsSchema.parse(request.params)

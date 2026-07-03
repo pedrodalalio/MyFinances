@@ -82,6 +82,7 @@ model User {
   created_at    DateTime @default(now())
 
   financialData FinancialData[]
+  refreshTokens RefreshToken[]
   creditCardPurchases CreditCardPurchase[]
   salaryProfiles SalaryProfile[]
   expenses Expense[]
@@ -93,6 +94,22 @@ model User {
   paymentChecks PaymentCheck[]
 
   @@map("users")
+}
+
+// Sessões de refresh token: uma linha por token emitido (o id vai como `jti`
+// no JWT do cookie). Rotação: cada refresh revoga a linha antiga e cria uma
+// nova; logout revoga a atual. Token sem linha válida = sessão encerrada.
+model RefreshToken {
+  id         String    @id @default(uuid())
+  user_id    String
+  expires_at DateTime
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("refresh_tokens")
 }
 
 model FinancialData {

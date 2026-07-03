@@ -5,7 +5,7 @@ export interface FinancialDataRepository {
   create(data: Prisma.FinancialDataUncheckedCreateInput): Promise<FinancialData>
   upsert(userId: string, month: string, year: number, data: Prisma.FinancialDataUncheckedCreateInput): Promise<FinancialData>
   update(id: string, data: Prisma.FinancialDataUpdateInput): Promise<FinancialData>
-  updateCreditCardSubtotal(id: string, creditCardSubtotal: number): Promise<FinancialData>
+  updateCreditCardSubtotal(id: string, creditCardSubtotal: Prisma.Decimal | number): Promise<FinancialData>
   findManyByUser(userId: string): Promise<FinancialData[]>
   delete(id: string): Promise<void>
   /**
@@ -14,6 +14,6 @@ export interface FinancialDataRepository {
    */
   confirmAndCarryOver(
     currentId: string,
-    next: { userId: string; month: string; year: number; previousBalance: number },
+    next: { userId: string; month: string; year: number; previousBalance: Prisma.Decimal | number },
   ): Promise<void>
 }

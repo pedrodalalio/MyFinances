@@ -1,7 +1,6 @@
 import { z } from "zod"
 import { FastifyRequest, FastifyReply } from "fastify"
-import { TransferBalanceToNextMonthService } from "@/services/transfer-balance-to-next-month"
-import { PrismaFinancialDataRepository } from "@/repositories/prisma/prisma-financial-data-repository"
+import { makeTransferBalanceService } from "@/services/factories/make-transfer-balance-service"
 
 export async function transferBalance(request: FastifyRequest, reply: FastifyReply) {
   const transferBalanceParamsSchema = z.object({
@@ -12,8 +11,7 @@ export async function transferBalance(request: FastifyRequest, reply: FastifyRep
   const { month, year } = transferBalanceParamsSchema.parse(request.params)
 
   try {
-    const financialDataRepository = new PrismaFinancialDataRepository()
-    const transferBalanceService = new TransferBalanceToNextMonthService(financialDataRepository)
+    const transferBalanceService = makeTransferBalanceService()
 
     await transferBalanceService.execute({
       userId: request.user.sub,

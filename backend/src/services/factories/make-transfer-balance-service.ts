@@ -1,9 +1,9 @@
 import { PrismaFinancialDataRepository } from "@/repositories/prisma/prisma-financial-data-repository"
-import { ConfirmMonthService } from "../confirm-month"
+import { TransferBalanceToNextMonthService } from "../transfer-balance-to-next-month"
 import { makeMonthSummaryService } from "./make-month-summary-service"
 
-export function makeConfirmMonthService() {
-  return new ConfirmMonthService(
+export function makeTransferBalanceService() {
+  return new TransferBalanceToNextMonthService(
     new PrismaFinancialDataRepository(),
     makeMonthSummaryService(),
   )

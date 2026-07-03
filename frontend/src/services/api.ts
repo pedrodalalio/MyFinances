@@ -70,9 +70,16 @@ class ApiService {
       });
       return response.data;
     } catch (error: any) {
-      console.error('Token refresh failed:', error);
       const errorMessage = error.response?.data?.message || error.message || 'Token refresh failed';
       throw new Error(errorMessage);
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.request<void>('/auth/logout', 'POST');
+    } catch {
+      // Mesmo se o servidor falhar, o frontend descarta a sessão local
     }
   }
 

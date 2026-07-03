@@ -1,3 +1,5 @@
+import { dateOnlyUTC } from "@/utils/date"
+
 export interface ParsedTransaction {
   date: Date
   description: string
@@ -89,16 +91,16 @@ function tryParseDate(str: string): Date | null {
   const brMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/)
   if (brMatch) {
     const day = parseInt(brMatch[1])
-    const month = parseInt(brMatch[2]) - 1
+    const month = parseInt(brMatch[2])
     const year = parseInt(brMatch[3]) < 100 ? 2000 + parseInt(brMatch[3]) : parseInt(brMatch[3])
-    const d = new Date(year, month, day, 12, 0, 0)
-    if (!isNaN(d.getTime()) && day >= 1 && day <= 31 && month >= 0 && month <= 11) return d
+    const d = dateOnlyUTC(year, month, day)
+    if (!isNaN(d.getTime()) && day >= 1 && day <= 31 && month >= 1 && month <= 12) return d
   }
 
   // YYYY-MM-DD
   const isoMatch = str.match(/^(\d{4})-(\d{2})-(\d{2})$/)
   if (isoMatch) {
-    const d = new Date(parseInt(isoMatch[1]), parseInt(isoMatch[2]) - 1, parseInt(isoMatch[3]), 12, 0, 0)
+    const d = dateOnlyUTC(parseInt(isoMatch[1]), parseInt(isoMatch[2]), parseInt(isoMatch[3]))
     if (!isNaN(d.getTime())) return d
   }
 

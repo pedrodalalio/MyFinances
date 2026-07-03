@@ -1,3 +1,4 @@
+import { parseDateOnly } from "@/utils/date"
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { z } from 'zod'
 import { makeUpdateInvestmentService } from '@/services/factories/make-update-investment-service'
@@ -16,9 +17,9 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     gross_yield: z.number().optional(),
     investment_type: z.enum(['STOCKS', 'FUNDS', 'CRYPTO', 'SAVINGS', 'CDB', 'LCI_LCA', 'DEBENTURES', 'TREASURY', 'ETF', 'FII', 'OTHER']).optional(),
     category: z.string().optional(),
-    date: z.string().optional().transform((str) => str && str.length > 0 ? new Date(str + "T12:00:00Z") : undefined),
-    purchase_date: z.string().optional().transform((str) => str && str.length > 0 ? new Date(str + "T12:00:00Z") : undefined),
-    maturity_date: z.string().optional().transform((str) => str && str.length > 0 ? new Date(str + "T12:00:00Z") : undefined),
+    date: z.string().optional().transform((str) => str && str.length > 0 ? parseDateOnly(str) : undefined),
+    purchase_date: z.string().optional().transform((str) => str && str.length > 0 ? parseDateOnly(str) : undefined),
+    maturity_date: z.string().optional().transform((str) => str && str.length > 0 ? parseDateOnly(str) : undefined),
     interest_rate: z.number().optional(),
     quantity: z.number().optional(),
     broker: z.string().optional(),

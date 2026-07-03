@@ -1,6 +1,7 @@
 // Importa direto o lib interno para evitar o código de debug do index.js do
 // pdf-parse, que tenta ler um PDF de teste quando rodando como módulo ESM.
 import pdf from "pdf-parse/lib/pdf-parse.js"
+import { dateOnlyUTC } from "@/utils/date"
 
 export interface ParsedInvestmentHolding {
   paper: string // "CDB LD 3"
@@ -23,7 +24,7 @@ function parseBrazilianAmount(raw: string): number {
 
 // Datas em UTC ao meio-dia para evitar deslocamento de fuso ao comparar/exibir.
 function parseDate(dd: string, mm: string, yyyy: string): Date {
-  return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), 12, 0, 0))
+  return dateOnlyUTC(Number(yyyy), Number(mm), Number(dd))
 }
 
 // Cada título da tabela "Resumo das Aplicações" sai do pdf-parse numa única

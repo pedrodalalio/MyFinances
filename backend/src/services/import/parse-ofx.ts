@@ -1,4 +1,5 @@
 import { ParsedTransaction } from './parse-csv'
+import { dateOnlyUTC } from "@/utils/date"
 
 export function parseOFX(content: string): ParsedTransaction[] {
   const transactions: ParsedTransaction[] = []
@@ -19,9 +20,9 @@ export function parseOFX(content: string): ParsedTransaction[] {
 
     const dateStr = dateMatch[1]
     const year = parseInt(dateStr.substring(0, 4))
-    const month = parseInt(dateStr.substring(4, 6)) - 1
+    const month = parseInt(dateStr.substring(4, 6))
     const day = parseInt(dateStr.substring(6, 8))
-    const date = new Date(year, month, day, 12, 0, 0)
+    const date = dateOnlyUTC(year, month, day)
 
     if (isNaN(date.getTime())) continue
 

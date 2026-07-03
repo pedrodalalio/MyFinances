@@ -3,6 +3,8 @@ import { InvestmentRepository } from "@/repositories/investment-repository";
 import { SalaryProfilesRepository } from "@/repositories/salary-profiles-repository";
 import { GetMonthlyExpensesService } from "./get-monthly-expenses";
 import { GetFinancialOverviewService } from "./get-financial-overview";
+import { previousPeriod } from "./utils/period";
+import { investmentOutflow, toDecimal, ZERO } from "./utils/money";
 
 interface DashboardSummaryRequest {
   userId: string;
@@ -49,9 +51,10 @@ export class DashboardSummaryService {
     const salary = overview.financial_data.main_income;
 
     // Get previous month overview for comparison
-    const previousMonth =
-      month === "01" ? "12" : (parseInt(month) - 1).toString().padStart(2, "0");
-    const previousYear = month === "01" ? year - 1 : year;
+    const { month: previousMonth, year: previousYear } = previousPeriod({
+      month,
+      year,
+    });
 
     let previousBalance = 0;
     let previousMonthlyExpenses = 0;
@@ -96,15 +99,17 @@ export class DashboardSummaryService {
       if (investment.maturity_date && investment.maturity_date.getTime() <= Date.now()) return false;
       return true;
     });
-    const totalInvestments = countableInvestments.reduce(
-      (sum, investment) => {
-        const amount = Number(investment.amount)
-        const qty = investment.quantity ? Number(investment.quantity) : 1
-        const effectiveAmount = investment.investment_type === 'ETF' || investment.investment_type === 'FII' ? amount * qty : amount
-        return sum + Number(investment.gross_yield || effectiveAmount)
-      },
-      0,
-    );
+    const totalInvestments = countableInvestments
+      .reduce(
+        (sum, investment) =>
+          sum.add(
+            investment.gross_yield !== null
+              ? toDecimal(investment.gross_yield)
+              : investmentOutflow(investment),
+          ),
+        ZERO,
+      )
+      .toNumber();
 
     // Calculate balance change
     const currentBalanceChange =

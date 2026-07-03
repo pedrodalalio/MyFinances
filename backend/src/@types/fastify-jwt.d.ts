@@ -5,6 +5,8 @@ declare module "@fastify/jwt" {
     user: {
       sub: string
       role: "ADMIN" | "MEMBER"
+      // Presente apenas no refresh token: id da linha em refresh_tokens
+      jti?: string
     }
   }
 }

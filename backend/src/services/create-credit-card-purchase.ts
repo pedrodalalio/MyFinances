@@ -3,6 +3,7 @@ import {
   CreditCardPurchasesRepository,
   InstallmentRowForPurchase,
 } from "@/repositories/credit-card-purchases-repository"
+import { nextPeriod } from "./utils/period"
 
 interface CreateCreditCardPurchaseServiceRequest {
   name: string
@@ -47,8 +48,7 @@ export class CreateCreditCardPurchaseService {
     const installmentRows: InstallmentRowForPurchase[] = []
 
     if (!is_recurring && installments) {
-      let currentMonth = parseInt(start_month)
-      let currentYear = start_year
+      let current = { month: start_month, year: start_year }
 
       for (let i = 1; i <= installments; i++) {
         installmentRows.push({
@@ -56,16 +56,11 @@ export class CreateCreditCardPurchaseService {
           installment_amount,
           current_installment: i,
           total_installments: installments,
-          month: currentMonth.toString().padStart(2, '0'),
-          year: currentYear
+          month: current.month,
+          year: current.year
         })
 
-        // Avançar para o próximo mês
-        currentMonth++
-        if (currentMonth > 12) {
-          currentMonth = 1
-          currentYear++
-        }
+        current = nextPeriod(current)
       }
     }
 

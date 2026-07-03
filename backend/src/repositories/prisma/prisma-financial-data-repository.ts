@@ -76,7 +76,7 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
     return financialData;
   }
 
-  async updateCreditCardSubtotal(id: string, creditCardSubtotal: number) {
+  async updateCreditCardSubtotal(id: string, creditCardSubtotal: Prisma.Decimal | number) {
     // Buscar dados atuais
     const currentData = await prisma.financialData.findUnique({
       where: { id },
@@ -85,10 +85,9 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
     if (!currentData) {
       throw new Error("FinancialData not found");
     }
-    const newTotalExpenses =
-      Number(currentData.expense_subtotal) +
-      creditCardSubtotal +
-      Number(currentData.tax_subtotal);
+    const newTotalExpenses = currentData.expense_subtotal
+      .add(creditCardSubtotal)
+      .add(currentData.tax_subtotal);
 
     const updatedFinancialData = await prisma.financialData.update({
       where: { id },
@@ -109,7 +108,7 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
 
   async confirmAndCarryOver(
     currentId: string,
-    next: { userId: string; month: string; year: number; previousBalance: number },
+    next: { userId: string; month: string; year: number; previousBalance: Prisma.Decimal | number },
   ) {
     await prisma.$transaction([
       prisma.financialData.update({

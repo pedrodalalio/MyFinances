@@ -1,12 +1,13 @@
 import { createContext, ReactNode, useState, useEffect } from "react";
 import { apiService, type User } from "../services/api";
+import { setAccessToken } from "../utils/api";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   refreshToken: () => Promise<string | null>;
   loading: boolean;
 }
@@ -22,16 +23,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // O access token vive só em memória; ao recarregar a página, a sessão é
+    // restaurada pelo refresh token no cookie httpOnly.
     const initializeAuth = async () => {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const userData = await apiService.getProfile();
-          setUser(userData);
-        } catch (error) {
-          // Token inválido, remover
-          localStorage.removeItem('token');
-        }
+      try {
+        const { token } = await apiService.refreshToken();
+        setAccessToken(token);
+        const userData = await apiService.getProfile();
+        setUser(userData);
+      } catch {
+        // Sem sessão ativa (cookie ausente, expirado ou revogado)
+        setAccessToken(null);
       }
       setLoading(false);
     };
@@ -45,7 +47,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { user: userData, token } = await apiService.signIn({ email, password });
 
       setUser(userData);
-      localStorage.setItem('token', token);
+      setAccessToken(token);
     } catch (error) {
       throw error;
     } finally {
@@ -59,7 +61,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       const { user: userData, token } = await apiService.signUp({ name, email, password });
 
       setUser(userData);
-      localStorage.setItem('token', token);
+      setAccessToken(token);
     } catch (error) {
       throw error;
     } finally {
@@ -67,15 +69,17 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const signOut = () => {
+  const signOut = async () => {
+    // Revoga o refresh token no servidor e limpa o cookie
+    await apiService.logout();
     setUser(null);
-    localStorage.removeItem('token');
+    setAccessToken(null);
   };
 
   const refreshToken = async (): Promise<string | null> => {
     try {
       const { token } = await apiService.refreshToken();
-      localStorage.setItem('token', token);
+      setAccessToken(token);
       return token;
     } catch (error) {
       console.error('Failed to refresh token:', error);

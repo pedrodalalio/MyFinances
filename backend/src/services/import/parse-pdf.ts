@@ -2,6 +2,7 @@
 // pdf-parse, que tenta ler um PDF de teste quando rodando como módulo ESM.
 import pdf from "pdf-parse/lib/pdf-parse.js"
 import { ParsedTransaction } from "./parse-csv"
+import { dateOnlyUTC } from "@/utils/date"
 
 export async function parsePDF(buffer: Buffer): Promise<ParsedTransaction[]> {
   const data = await pdf(buffer)
@@ -60,7 +61,7 @@ export function parsePagBankStatement(text: string): ParsedTransaction[] {
     const isCredit = !value[1] // sem sinal de menos = entrada
 
     transactions.push({
-      date: new Date(year, month - 1, day, 12, 0, 0),
+      date: dateOnlyUTC(year, month, day),
       description,
       amount,
       isCredit,

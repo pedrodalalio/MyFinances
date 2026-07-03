@@ -1,4 +1,5 @@
 import { Expense, RecurringExpense } from '@prisma/client'
+import { previousPeriod } from './period'
 
 /**
  * Janela de vigência mensal. Cobre tanto gastos fixos (RecurringExpense)
@@ -84,9 +85,5 @@ export function previousMonth(
   month: string,
   year: number,
 ): { month: string; year: number } {
-  const m = parseInt(month)
-  if (m === 1) {
-    return { month: '12', year: year - 1 }
-  }
-  return { month: (m - 1).toString().padStart(2, '0'), year }
+  return previousPeriod({ month, year })
 }

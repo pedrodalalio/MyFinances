@@ -2,6 +2,8 @@ import { z } from "zod"
 import { FastifyRequest, FastifyReply } from "fastify"
 import { UserAlreadyExistsError } from "@/services/errors/user-already-exists-error"
 import { makeRegisterService } from "@/services/factories/make-register-service"
+import { issueAuthTokens } from "@/http/utils/issue-auth-tokens"
+import { PrismaRefreshTokensRepository } from "@/repositories/prisma/prisma-refresh-tokens-repository"
 
 export async function register(request: FastifyRequest, reply: FastifyReply) {
   const registerBodySchema = z.object({
@@ -21,27 +23,10 @@ export async function register(request: FastifyRequest, reply: FastifyReply) {
       password
     })
 
-    const token = await reply.jwtSign(
-      {
-        role: user.role
-      },
-      {
-        sign: {
-          sub: user.id
-        }
-      }
-    )
-
-    const refreshToken = await reply.jwtSign(
-      {
-        role: user.role
-      },
-      {
-        sign: {
-          sub: user.id,
-          expiresIn: "7d"
-        }
-      }
+    const { token, refreshToken } = await issueAuthTokens(
+      reply,
+      new PrismaRefreshTokensRepository(),
+      user,
     )
 
     return reply
