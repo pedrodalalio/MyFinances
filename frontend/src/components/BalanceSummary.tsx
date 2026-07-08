@@ -22,7 +22,7 @@ export default function BalanceSummary() {
   const year = now.getFullYear();
 
   const { data, isPending: loading } = useQuery({
-    queryKey: queryKeys.financialOverview(month, year),
+    queryKey: queryKeys.balanceSummary(month, year),
     queryFn: async () => {
       const [overviewRes, portfolioRes] = await Promise.all([
         api.get(`/financial-overview/${month}/${year}`),

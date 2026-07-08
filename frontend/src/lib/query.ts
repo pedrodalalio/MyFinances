@@ -18,6 +18,12 @@ export const queryClient = new QueryClient({
 export const queryKeys = {
   financialOverview: (month: string, year: number | string) =>
     ["financial-overview", String(month), String(year)] as const,
+  // Widget de patrimônio no topo (saldo em conta + investido). Combina
+  // overview + portfolio, então precisa de key própria — NÃO reusar a de
+  // financialOverview, senão as duas queries brigam pela mesma entrada de
+  // cache com shapes diferentes.
+  balanceSummary: (month: string, year: number | string) =>
+    ["balance-summary", String(month), String(year)] as const,
   financialData: (month: string, year: number | string) =>
     ["financial-data", String(month), String(year)] as const,
   dashboardSummary: (month?: string, year?: string) =>
@@ -55,6 +61,7 @@ export const queryKeys = {
 // invalidar também as keys do próprio recurso.
 export function invalidateFinancialData() {
   queryClient.invalidateQueries({ queryKey: ["financial-overview"] });
+  queryClient.invalidateQueries({ queryKey: ["balance-summary"] });
   queryClient.invalidateQueries({ queryKey: ["financial-data"] });
   queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
   queryClient.invalidateQueries({ queryKey: ["monthly-flow"] });
