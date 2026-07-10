@@ -52,6 +52,7 @@ export const investmentFormSchema = z.object({
   broker: z.string().optional(),
   ticker: z.string().optional(),
   dividend_yield: z.string().optional(),
+  is_reserve: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -74,6 +75,7 @@ export const INVESTMENT_FORM_DEFAULTS: InvestmentFormValues = {
   broker: "",
   ticker: "",
   dividend_yield: "",
+  is_reserve: false,
   notes: "",
 };
 
@@ -97,6 +99,7 @@ export interface Investment {
   ticker?: string;
   dividend_yield?: number;
   status: string;
+  is_reserve?: boolean;
   notes?: string;
   updated_at?: string;
 }
@@ -181,6 +184,8 @@ export interface CdiComparisonSummary {
 export interface CdiComparison {
   series: CdiComparisonPoint[];
   summary: CdiComparisonSummary | null;
+  // Itens de renda fixa isolados por valor atual < aplicado (resgate mal registrado)
+  flaggedCount?: number;
 }
 
 export type PeriodPreset = "30d" | "3m" | "6m" | "1y" | "all";

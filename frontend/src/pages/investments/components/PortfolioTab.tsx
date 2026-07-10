@@ -15,6 +15,7 @@ import {
 import { usePortfolioMetrics } from "../hooks/usePortfolioMetrics";
 import { CdiComparisonChart } from "./CdiComparisonChart";
 import { MaturedInvestmentsCard } from "./MaturedInvestmentsCard";
+import { PassiveIncomeCard } from "./PassiveIncomeCard";
 import { PortfolioSummarySection } from "./PortfolioSummarySection";
 import { PortfolioGroupsCard } from "./PortfolioGroupsCard";
 import { RedeemDialog } from "./RedeemDialog";
@@ -76,6 +77,8 @@ export function PortfolioTab({
 
       {portfolio && filteredSummary && (
         <>
+          <PassiveIncomeCard investments={portfolio.allInvestments} />
+
           <PortfolioSummarySection
             summary={filteredSummary}
             periodMetrics={periodMetrics}

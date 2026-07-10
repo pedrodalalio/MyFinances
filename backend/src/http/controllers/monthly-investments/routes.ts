@@ -13,6 +13,7 @@ import { getFiiIncome } from "./get-fii-income"
 import { getFiiLookup } from "./get-fii-lookup"
 import { getFiiRanking } from "./get-fii-ranking"
 import { getCdiComparison } from "./get-cdi-comparison"
+import { getCdiRate } from "./get-cdi-rate"
 import { importStatement } from "./import-statement"
 
 export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
@@ -34,5 +35,6 @@ export async function monthlyInvestmentsRoutes(app: FastifyInstance) {
   app.get('/investments/fii-lookup/:ticker', getFiiLookup)
   app.get('/investments/fii-ranking', getFiiRanking)
   app.get('/investments/cdi-comparison', getCdiComparison)
+  app.get('/investments/cdi-rate', getCdiRate)
   app.post('/investments/import-statement', importStatement)
 }

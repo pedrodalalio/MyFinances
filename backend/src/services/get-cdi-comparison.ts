@@ -29,9 +29,22 @@ interface CdiComparisonSummary {
 interface CdiComparisonResponse {
   series: CdiComparisonPoint[]
   summary: CdiComparisonSummary | null
+  /** Itens de renda fixa isolados por valor atual < aplicado (resgate mal registrado) */
+  flaggedCount: number
 }
 
 type InvestmentWithSnapshots = Investment & { snapshots: InvestmentSnapshot[] }
+
+// Renda fixa não pode valer menos que o aplicado (juros só somam). Quando o
+// valor atual fica abaixo do aplicado nesses tipos, é resgate parcial não
+// abatido ou dado inconsistente — esses itens são isolados da comparação.
+const FIXED_INCOME_TYPES = new Set<string>([
+  'CDB',
+  'LCI_LCA',
+  'DEBENTURES',
+  'TREASURY',
+  'SAVINGS',
+])
 
 function toIsoDate(date: Date): string {
   return date.toISOString().split('T')[0]
@@ -61,24 +74,36 @@ export class GetCdiComparisonService {
     })) as InvestmentWithSnapshots[]
 
     if (investments.length === 0) {
-      return { series: [], summary: null }
+      return { series: [], summary: null, flaggedCount: 0 }
     }
 
     const today = toIsoDate(new Date())
 
-    const items = investments.map((inv) => {
+    const mapped = investments.map((inv) => {
       const start = toIsoDate(inv.purchase_date ?? inv.date)
       const invested = getEffectiveAmount(inv)
       return {
         start: start > today ? today : start,
         invested,
         current: inv.gross_yield ? Number(inv.gross_yield) : invested,
+        fixedIncome: FIXED_INCOME_TYPES.has(inv.investment_type),
         snapshots: inv.snapshots.map((snap) => ({
           date: toIsoDate(snap.recorded_at),
           value: Number(snap.gross_yield),
         })),
       }
     })
+
+    // Isola renda fixa "submersa" (atual < aplicado) pra um registro torto — ex.:
+    // resgate parcial não abatido do principal — não afundar a comparação inteira.
+    const isFlagged = (m: (typeof mapped)[number]) =>
+      m.fixedIncome && m.current < m.invested - 0.01
+    const flaggedCount = mapped.filter(isFlagged).length
+    const items = mapped.filter((m) => !isFlagged(m))
+
+    if (items.length === 0) {
+      return { series: [], summary: null, flaggedCount }
+    }
 
     const earliestStart = items.reduce(
       (min, item) => (item.start < min ? item.start : min),
@@ -153,6 +178,6 @@ export class GetCdiComparisonService {
       percentOfCdi: cdiReturn > 0.01 ? (actualReturn / cdiReturn) * 100 : null,
     }
 
-    return { series, summary }
+    return { series, summary, flaggedCount }
   }
 }

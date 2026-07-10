@@ -23,6 +23,7 @@ interface GetInvestmentsByMonthServiceResponse {
     quantity: number | null
     broker: string | null
     gross_yield: number | null
+    is_reserve: boolean
     notes: string | null
   }[]
 }
@@ -55,6 +56,7 @@ export class GetInvestmentsByMonthService {
         quantity: investment.quantity ? Number(investment.quantity) : null,
         broker: investment.broker,
         gross_yield: investment.gross_yield ? Number(investment.gross_yield) : null,
+        is_reserve: investment.is_reserve,
         notes: investment.notes
       }))
     }

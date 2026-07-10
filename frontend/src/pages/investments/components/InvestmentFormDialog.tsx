@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 import {
   INVESTMENT_FORM_DEFAULTS,
@@ -44,8 +45,11 @@ interface InvestmentFormDialogProps {
   onOpenChange: (open: boolean) => void;
   // Investimento em edição (null = criação)
   editing: Investment | null;
-  // Valores pré-preenchidos para criação (fluxo de reinvestimento)
+  // Valores pré-preenchidos para criação (fluxo de reinvestimento / importação)
   prefill: Partial<InvestmentFormValues> | null;
+  // Chamado após uma criação bem-sucedida (não dispara em edição). Recebe os
+  // valores enviados — usado pelo fluxo de importação para somar a alocação.
+  onCreated?: (values: InvestmentFormValues) => void;
 }
 
 // Converte os campos texto do formulário no corpo esperado pelo backend
@@ -65,6 +69,7 @@ const buildRequestBody = (values: InvestmentFormValues) => ({
   broker: values.broker || undefined,
   ticker: values.ticker || undefined,
   dividend_yield: values.dividend_yield ? parseFloat(values.dividend_yield) : undefined,
+  is_reserve: values.is_reserve ?? false,
   notes: values.notes || undefined,
 });
 
@@ -85,6 +90,7 @@ const valuesFromInvestment = (investment: Investment): InvestmentFormValues => (
   broker: investment.broker || "",
   ticker: investment.ticker || "",
   dividend_yield: investment.dividend_yield?.toString() || "",
+  is_reserve: investment.is_reserve ?? false,
   notes: investment.notes || "",
 });
 
@@ -93,6 +99,7 @@ export function InvestmentFormDialog({
   onOpenChange,
   editing,
   prefill,
+  onCreated,
 }: InvestmentFormDialogProps) {
   const [selectedInvestmentType, setSelectedInvestmentType] = useState<string>("CDB");
   const createMutation = useCreateInvestmentMutation();
@@ -122,6 +129,7 @@ export function InvestmentFormDialog({
         await updateMutation.mutateAsync({ id: editing.id, body });
       } else {
         await createMutation.mutateAsync(body);
+        onCreated?.(values);
       }
       onOpenChange(false);
       form.reset(INVESTMENT_FORM_DEFAULTS);
@@ -488,6 +496,29 @@ export function InvestmentFormDialog({
                 </div>
               </div>
             )}
+
+            <FormField
+              control={form.control}
+              name="is_reserve"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5 pr-4">
+                    <FormLabel>Liquidez diária / reserva</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Dinheiro que continua líquido e disponível (ex.: CDB de
+                      liquidez diária). Não conta como saída nem reduz o Saldo em
+                      Conta do mês, mas segue no portfólio rendendo.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value ?? false}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

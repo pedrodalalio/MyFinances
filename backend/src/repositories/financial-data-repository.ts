@@ -9,11 +9,13 @@ export interface FinancialDataRepository {
   findManyByUser(userId: string): Promise<FinancialData[]>
   delete(id: string): Promise<void>
   /**
-   * Marca o mês `currentId` como confirmado e grava o previous_balance do mês
-   * seguinte (criando-o se não existir) em uma única transação.
+   * Marca o mês `currentId` como confirmado, grava o snapshot de fechamento
+   * (congela o mês) e o previous_balance do mês seguinte (criando-o se não
+   * existir) em uma única transação.
    */
   confirmAndCarryOver(
     currentId: string,
+    closingSnapshot: Prisma.InputJsonValue,
     next: { userId: string; month: string; year: number; previousBalance: Prisma.Decimal | number },
   ): Promise<void>
 }

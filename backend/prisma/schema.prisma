@@ -138,6 +138,10 @@ model FinancialData {
 
   // Controle de fechamento do mês
   is_confirmed Boolean @default(false)
+  // Snapshot dos totais gravado no fechamento. Mês confirmado é EXIBIDO a partir
+  // daqui (congelado), imune a edições posteriores nos lançamentos. null = ainda
+  // não fechado (ou fechado antes do snapshot existir → cai no cálculo ao vivo).
+  closing_snapshot Json?
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -320,6 +324,7 @@ model Investment {
   ticker              String?            // Código do ativo
   dividend_yield      Decimal?           // Dividend yield
   status              InvestmentStatus   @default(ACTIVE)
+  is_reserve          Boolean            @default(false) // Liquidez diária/reserva: dinheiro ainda líquido, não sai do saldo do mês
   notes               String?
   user_id             String
   created_at          DateTime           @default(now())

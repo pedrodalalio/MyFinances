@@ -7,7 +7,7 @@ interface CategorizeResult {
 }
 
 // Regras de categorização - podem ser expandidas com o tempo
-const rules: { patterns: RegExp[], type: ImportTransactionType, category: string }[] = [
+const rules: { patterns: RegExp[], type: ImportTransactionType, category: string | null }[] = [
   // Investimentos
   { patterns: [/tesouro direto/i, /tesouro selic/i, /tesouro ipca/i, /tesouro prefixado/i], type: 'INVESTMENT', category: 'Tesouro Direto' },
   { patterns: [/cdb/i, /lci/i, /lca/i, /debenture/i], type: 'INVESTMENT', category: 'Renda Fixa' },
@@ -24,6 +24,12 @@ const rules: { patterns: RegExp[], type: ImportTransactionType, category: string
 
   // Ignorar - transferências entre contas próprias
   { patterns: [/transf.*mesma titularidade/i, /transf.*entre contas/i, /aplicacao.*automatica/i, /aplicação.*automática/i, /resgate.*automatico/i], type: 'IGNORE', category: null },
+
+  // Ignorar - pagamento de fatura do cartão. As compras do cartão já entram
+  // pelo módulo de cartão; contar o pagamento da fatura como gasto duplicaria.
+  // Exige "fatura" + contexto de cartão/crédito para não pegar fatura de
+  // luz/água/etc. (lookahead: os dois termos em qualquer ordem).
+  { patterns: [/(?=.*fatura)(?=.*cart[aã]o)/i, /(?=.*fatura)(?=.*cr[eé]dito)/i], type: 'IGNORE', category: null },
 
   // Entradas
   { patterns: [/salario/i, /salário/i, /folha.*pagamento/i, /pgto.*salario/i], type: 'INCOME', category: 'Salário' },

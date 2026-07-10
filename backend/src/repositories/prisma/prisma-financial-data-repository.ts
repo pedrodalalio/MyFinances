@@ -108,12 +108,13 @@ export class PrismaFinancialDataRepository implements FinancialDataRepository {
 
   async confirmAndCarryOver(
     currentId: string,
+    closingSnapshot: Prisma.InputJsonValue,
     next: { userId: string; month: string; year: number; previousBalance: Prisma.Decimal | number },
   ) {
     await prisma.$transaction([
       prisma.financialData.update({
         where: { id: currentId },
-        data: { is_confirmed: true },
+        data: { is_confirmed: true, closing_snapshot: closingSnapshot },
       }),
       prisma.financialData.upsert({
         where: {

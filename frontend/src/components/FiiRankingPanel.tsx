@@ -25,8 +25,10 @@ interface FiiRankingEntry {
   monthly_yield_pct: number;
   annual_yield_pct: number;
   months_paid_12m: number;
+  history_months: number;
   price_change_12m_pct: number | null;
   amortization_share_pct: number;
+  dividend_trend_pct: number | null;
   score: number;
   score_breakdown: {
     yield: number;
@@ -34,7 +36,10 @@ interface FiiRankingEntry {
     dividend_stability: number;
     price_stability: number;
     pvp: number;
+    liquidity: number;
+    track_record: number;
     amortization_penalty: number;
+    dividend_trend_penalty: number;
   };
   flags: string[];
   source: string;
@@ -54,6 +59,16 @@ interface FiiRankingData {
 
 const formatBRL = (value: number): string =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const formatCompactBRL = (value: number): string => {
+  if (value >= 1_000_000)
+    return `R$ ${(value / 1_000_000).toLocaleString("pt-BR", {
+      maximumFractionDigits: 1,
+    })} mi`;
+  if (value >= 1_000)
+    return `R$ ${Math.round(value / 1_000).toLocaleString("pt-BR")} mil`;
+  return formatBRL(value);
+};
 
 const formatPct = (value: number, digits = 2): string =>
   `${value.toLocaleString("pt-BR", {
@@ -81,6 +96,21 @@ const FLAG_LABELS: Record<string, { label: string; title: string }> = {
     title:
       "Não foi possível obter a variação da cota em 12m; a nota usa valor neutro nesse critério.",
   },
+  baixa_liquidez: {
+    label: "baixa liquidez",
+    title:
+      "Volume negociado abaixo de R$ 300 mil/dia — pode ser difícil montar ou desmontar posição sem mexer no preço.",
+  },
+  fundo_novo: {
+    label: "fundo novo",
+    title:
+      "Menos de 18 meses de histórico de proventos: ainda não passou por um ciclo de juros/estresse de crédito.",
+  },
+  provento_em_queda: {
+    label: "provento em queda",
+    title:
+      "A média de rendimento dos últimos 6 meses está mais de 8% abaixo dos 6 meses anteriores — sinal de carteira deteriorando (ex.: inadimplência num CRI).",
+  },
 };
 
 const scoreBadgeClass = (score: number): string => {
@@ -92,13 +122,19 @@ const scoreBadgeClass = (score: number): string => {
 
 const scoreTitle = (entry: FiiRankingEntry): string => {
   const b = entry.score_breakdown;
+  // Tolera dado parcial (ex.: cache antigo do backend sem os campos novos).
+  const n = (value: number | undefined): string =>
+    (value ?? 0).toLocaleString("pt-BR");
   return [
-    `Yield mensal: ${b.yield.toLocaleString("pt-BR")}/35`,
-    `Consistência: ${b.consistency.toLocaleString("pt-BR")}/20`,
-    `Estabilidade do provento: ${b.dividend_stability.toLocaleString("pt-BR")}/15`,
-    `Estabilidade do preço: ${b.price_stability.toLocaleString("pt-BR")}/15`,
-    `P/VP: ${b.pvp.toLocaleString("pt-BR")}/15`,
-    `Penalidade amortização: ${b.amortization_penalty.toLocaleString("pt-BR")}`,
+    `Yield mensal: ${n(b.yield)}/30`,
+    `Consistência: ${n(b.consistency)}/15`,
+    `Estabilidade do provento: ${n(b.dividend_stability)}/12`,
+    `Estabilidade do preço: ${n(b.price_stability)}/13`,
+    `P/VP: ${n(b.pvp)}/10`,
+    `Liquidez: ${n(b.liquidity)}/10`,
+    `Track record: ${n(b.track_record)}/10`,
+    `Penalidade amortização: ${n(b.amortization_penalty)}`,
+    `Penalidade provento em queda: ${n(b.dividend_trend_penalty)}`,
   ].join("\n");
 };
 
@@ -106,7 +142,11 @@ export const FiiRankingPanel = () => {
   const { data, isPending, isError, refetch, isFetching } =
     useQuery<FiiRankingData>({
       queryKey: queryKeys.fiiRanking,
-      queryFn: async () => (await api.get("/investments/fii-ranking")).data,
+      queryFn: async () =>
+        // A primeira carga varre ~30 fundos e pode levar ~30s; o timeout
+        // global do axios (10s) estouraria e cairia no estado de erro mesmo
+        // com o backend ainda trabalhando. 60s cobre o scraping com folga.
+        (await api.get("/investments/fii-ranking", { timeout: 60_000 })).data,
       // O backend faz scraping de ~30 fundos na primeira carga (depois fica
       // 6h em cache no servidor); não vale refazer a cada navegação.
       staleTime: 30 * 60 * 1000,
@@ -255,6 +295,12 @@ export const FiiRankingPanel = () => {
                   </th>
                   <th
                     className="p-2 font-medium text-right"
+                    title="Volume médio negociado por dia: quanto mais alto, mais fácil comprar e vender sem mexer no preço"
+                  >
+                    Liquidez
+                  </th>
+                  <th
+                    className="p-2 font-medium text-right"
                     title="Meses com rendimento pago nos últimos 12"
                   >
                     Pagou
@@ -304,6 +350,16 @@ export const FiiRankingPanel = () => {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
+                    </td>
+                    <td
+                      className={`p-2 text-right ${
+                        entry.liquidity < 300_000
+                          ? "text-[color:var(--warning)]"
+                          : "text-muted-foreground"
+                      }`}
+                      title={`${formatBRL(entry.liquidity)}/dia`}
+                    >
+                      {formatCompactBRL(entry.liquidity)}
                     </td>
                     <td className="p-2 text-right">
                       {entry.months_paid_12m}/12
@@ -360,13 +416,15 @@ export const FiiRankingPanel = () => {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        O score (0–100) combina rendimento mensal por real investido (35),
-        consistência de pagamento (20), estabilidade do provento (15),
-        estabilidade da cota em 12m (15) e P/VP (15), com penalidade para
-        amortização. Passe o mouse no score para ver o detalhamento. Fontes
-        públicas (Fundamentus, StatusInvest, Yahoo Finance) com cache de 6h.
-        Ferramenta de apoio à decisão — não é recomendação de investimento;
-        rentabilidade passada não garante rendimento futuro.
+        O score (0–100) combina rendimento mensal por real investido (30),
+        consistência de pagamento (15), estabilidade do provento (12),
+        estabilidade da cota em 12m (13), P/VP (10), liquidez (10) e track
+        record/idade do fundo (10), com penalidades para amortização (devolução
+        de capital) e para provento em queda (sinal de carteira deteriorando).
+        Passe o mouse no score para ver o detalhamento. Fontes públicas
+        (Fundamentus, StatusInvest, Yahoo Finance) com cache de 6h. Ferramenta
+        de apoio à decisão — não é recomendação de investimento; rentabilidade
+        passada não garante rendimento futuro.
       </p>
     </div>
   );

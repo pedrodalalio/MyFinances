@@ -17,6 +17,7 @@ export interface CreateInvestmentData {
   ticker?: string
   dividendYield?: number
   status?: InvestmentStatus
+  isReserve?: boolean
   notes?: string
   userId: string
 }
@@ -39,6 +40,7 @@ export interface UpdateInvestmentData {
   ticker?: string
   dividendYield?: number
   status?: InvestmentStatus
+  isReserve?: boolean
   notes?: string
   userId: string
 }

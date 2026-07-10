@@ -77,6 +77,7 @@ export function CdiComparisonChart({ filter }: CdiComparisonChartProps) {
   const query = useCdiComparisonQuery(filter);
   const series: CdiComparisonPoint[] = useMemo(() => query.data?.series ?? [], [query.data]);
   const summary = query.data?.summary ?? null;
+  const flaggedCount: number = query.data?.flaggedCount ?? 0;
 
   const filterLabel = filter === "all" ? "todos os investimentos" : getInvestmentTypeLabel(filter);
 
@@ -88,6 +89,14 @@ export function CdiComparisonChart({ filter }: CdiComparisonChartProps) {
           <p className="text-sm text-muted-foreground mt-1">
             Evolução de {filterLabel} vs. o mesmo valor rendendo CDI desde cada aplicação
           </p>
+          {flaggedCount > 0 && (
+            <p className="text-xs text-[color:var(--warning)] mt-1">
+              {flaggedCount}{" "}
+              {flaggedCount === 1
+                ? "investimento de renda fixa foi ignorado nesta comparação por estar com valor atual menor que o aplicado (possível resgate parcial não abatido)."
+                : "investimentos de renda fixa foram ignorados nesta comparação por estarem com valor atual menor que o aplicado (possível resgate parcial não abatido)."}
+            </p>
+          )}
         </div>
         {summary?.percentOfCdi != null && (
           <div className="text-right shrink-0">

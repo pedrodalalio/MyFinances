@@ -43,6 +43,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { InvestmentFormDialog } from "@/pages/investments/components/InvestmentFormDialog";
+import type { InvestmentFormValues } from "@/pages/investments/types";
+import { LinkPaymentsDialog } from "./LinkPaymentsDialog";
 
 const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat("pt-BR", {
@@ -153,6 +156,24 @@ const ImportsPage = () => {
   const [orphans, setOrphans] = useState<OrphanRecord[]>([]);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fluxo de importação → cadastro de investimento pela tela real do portfólio.
+  // `transactionId` é a linha do extrato que está sendo cadastrada; `allocations`
+  // guarda quanto do valor da linha já foi alocado em investimentos (uma linha
+  // pode virar vários investimentos, ex.: 1 PIX = 2 ETFs diferentes).
+  const [investmentForm, setInvestmentForm] = useState<{
+    open: boolean;
+    prefill: Partial<InvestmentFormValues> | null;
+    transactionId: string | null;
+  }>({ open: false, prefill: null, transactionId: null });
+  const [allocations, setAllocations] = useState<Record<string, number>>({});
+
+  // Vínculo de uma linha do extrato (PIX para outra conta) ao pagamento de
+  // gastos fixos do mês (Inglês, Internet...) — evita duplicar e concilia total
+  const [linkDialog, setLinkDialog] = useState<{
+    open: boolean;
+    transaction: ImportTransaction | null;
+  }>({ open: false, transaction: null });
 
   useEffect(() => {
     document.title = "Importações | MyFinances";
@@ -309,6 +330,69 @@ const ImportsPage = () => {
 
   const confirmSingleTransaction = (transactionId: string) => {
     confirmSingleMutation.mutate(transactionId);
+  };
+
+  // Marca a linha como cadastrada SEM criar registro (o investimento já foi
+  // criado pelo formulário). Usado pelo botão "Concluído" das linhas de
+  // investimento.
+  const markConfirmedMutation = useMutation({
+    mutationFn: async (transactionId: string) =>
+      api.post(`/imports/transactions/${transactionId}/confirm`, {
+        skipCreate: true,
+      }),
+    onSuccess: (_data, transactionId) => {
+      patchSelectedTransaction(transactionId, { is_confirmed: true });
+      invalidateConfirmedRecords();
+    },
+    onError: (error: any) => {
+      toast.error(
+        error?.response?.data?.message || "Erro ao concluir cadastro.",
+      );
+    },
+  });
+
+  // Abre o formulário de investimento pré-preenchido a partir de uma linha do
+  // extrato. Não pré-preenche o valor: para ETF/FII o campo é preço por cota
+  // (não o total da linha), então deixamos o usuário informar tipo/cotas/valor.
+  const openInvestmentForm = (t: ImportTransaction) => {
+    setInvestmentForm({
+      open: true,
+      transactionId: t.id,
+      prefill: {
+        name: t.description,
+        date: t.date.slice(0, 10),
+        purchase_date: t.date.slice(0, 10),
+      },
+    });
+  };
+
+  const handleInvestmentCreated = (values: InvestmentFormValues) => {
+    const txId = investmentForm.transactionId;
+    if (!txId) return;
+    const amount = parseFloat(values.amount) || 0;
+    const qty = parseFloat(values.quantity ?? "") || 0;
+    // ETF/FII são unit-priced: valor efetivo = preço da cota × quantidade
+    const effective =
+      values.investment_type === "ETF" || values.investment_type === "FII"
+        ? amount * qty
+        : amount;
+    setAllocations((prev) => ({
+      ...prev,
+      [txId]: (prev[txId] || 0) + effective,
+    }));
+  };
+
+  const openLinkDialog = (t: ImportTransaction) => {
+    setLinkDialog({ open: true, transaction: t });
+  };
+
+  // Após vincular: a linha vira TRANSFERÊNCIA (não gera lançamento) e fica
+  // resolvida; os gastos fixos já foram marcados como pagos pelo backend.
+  const handlePaymentsLinked = (transactionId: string) => {
+    patchSelectedTransaction(transactionId, {
+      type: "TRANSFER",
+      is_confirmed: true,
+    });
   };
 
   const confirmImportMutation = useMutation({
@@ -697,21 +781,82 @@ const ImportsPage = () => {
                               (t.is_confirmed ? (
                                 <span className="inline-flex items-center gap-1 text-xs text-[color:var(--success)] font-medium">
                                   <Check className="h-3 w-3" />
-                                  Cadastrado
+                                  {t.type === "TRANSFER"
+                                    ? "Vinculado"
+                                    : "Cadastrado"}
                                 </span>
-                              ) : t.type !== "IGNORE" && t.type !== "TRANSFER" ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7"
-                                  disabled={confirmingId === t.id}
-                                  onClick={() => confirmSingleTransaction(t.id)}
-                                >
-                                  {confirmingId === t.id
-                                    ? "..."
-                                    : "Cadastrar"}
-                                </Button>
-                              ) : null)}
+                              ) : t.type === "INVESTMENT" ? (
+                                (() => {
+                                  const allocated = allocations[t.id] || 0;
+                                  const total = Number(t.amount);
+                                  return (
+                                    <div className="flex flex-col items-end gap-1">
+                                      {allocated > 0 && (
+                                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                                          Alocado: R$ {formatCurrency(allocated)}{" "}
+                                          / {formatCurrency(total)}
+                                        </span>
+                                      )}
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7"
+                                          onClick={() => openInvestmentForm(t)}
+                                        >
+                                          {allocated > 0
+                                            ? "Cadastrar mais"
+                                            : "Cadastrar"}
+                                        </Button>
+                                        {allocated > 0 && (
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 text-[color:var(--success)]"
+                                            disabled={
+                                              markConfirmedMutation.isPending
+                                            }
+                                            onClick={() =>
+                                              markConfirmedMutation.mutate(t.id)
+                                            }
+                                          >
+                                            Concluído
+                                          </Button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })()
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  {t.type !== "IGNORE" &&
+                                    t.type !== "TRANSFER" && (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7"
+                                        disabled={confirmingId === t.id}
+                                        onClick={() =>
+                                          confirmSingleTransaction(t.id)
+                                        }
+                                      >
+                                        {confirmingId === t.id
+                                          ? "..."
+                                          : "Cadastrar"}
+                                      </Button>
+                                    )}
+                                  {!t.is_credit && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="h-7 whitespace-nowrap"
+                                      onClick={() => openLinkDialog(t)}
+                                    >
+                                      Vincular gasto fixo
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
                           </td>
                         </tr>
                       ))}
@@ -783,6 +928,32 @@ const ImportsPage = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Formulário de investimento reaproveitado do portfólio, aberto ao
+          cadastrar uma linha do extrato marcada como Investimento */}
+      <InvestmentFormDialog
+        open={investmentForm.open}
+        onOpenChange={(open) =>
+          setInvestmentForm((s) => ({ ...s, open }))
+        }
+        editing={null}
+        prefill={investmentForm.prefill}
+        onCreated={handleInvestmentCreated}
+      />
+
+      {/* Vincular uma linha do extrato ao pagamento de gastos fixos do mês */}
+      {selectedImport && (
+        <LinkPaymentsDialog
+          open={linkDialog.open}
+          onOpenChange={(open) =>
+            setLinkDialog((s) => ({ ...s, open }))
+          }
+          transaction={linkDialog.transaction}
+          month={selectedImport.month}
+          year={selectedImport.year}
+          onLinked={handlePaymentsLinked}
+        />
+      )}
     </div>
   );
 };

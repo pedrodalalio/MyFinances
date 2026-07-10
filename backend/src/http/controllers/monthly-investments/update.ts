@@ -25,6 +25,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
     broker: z.string().optional(),
     ticker: z.string().optional(),
     dividend_yield: z.number().optional(),
+    is_reserve: z.boolean().optional(),
     notes: z.string().optional()
   })
 
@@ -51,6 +52,7 @@ export async function update(request: FastifyRequest, reply: FastifyReply) {
       broker: body.broker,
       ticker: body.ticker,
       dividendYield: body.dividend_yield,
+      isReserve: body.is_reserve,
       notes: body.notes,
       userId: request.user.sub
     })

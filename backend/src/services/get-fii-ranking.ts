@@ -32,10 +32,15 @@ export interface FiiRankingEntry {
   annual_yield_pct: number
   /** Meses com rendimento pago nos últimos 12 (12/12 = pagou todo mês) */
   months_paid_12m: number
+  /** Meses de histórico de proventos desde o primeiro pagamento */
+  history_months: number
   /** Variação da cota em 12m, em % (null = sem histórico no Yahoo) */
   price_change_12m_pct: number | null
   /** Fatia dos proventos 12m que foi amortização (devolução de capital), em % */
   amortization_share_pct: number
+  /** Variação do provento (média 6m recentes vs 6m anteriores), em %.
+   *  Negativo = provento em queda; null = histórico curto demais para medir. */
+  dividend_trend_pct: number | null
   /** Nota 0–100 combinando yield, consistência e estabilidade */
   score: number
   score_breakdown: {
@@ -44,7 +49,10 @@ export interface FiiRankingEntry {
     dividend_stability: number
     price_stability: number
     pvp: number
+    liquidity: number
+    track_record: number
     amortization_penalty: number
+    dividend_trend_penalty: number
   }
   /** Avisos para exibir na UI (ex: 'amortizacao', 'queda_preco') */
   flags: string[]
@@ -83,6 +91,15 @@ export class FiiMarketUnavailableError extends Error {
 const MIN_LIQUIDITY = 100_000 // R$/dia — menos que isso é difícil comprar/vender
 const MIN_MARKET_VALUE = 50_000_000 // fundos micro distorcem indicadores
 const PVP_RANGE: [number, number] = [0.4, 2] // fora disso o dado está quebrado
+
+// Nota de liquidez: escala log do piso (nota 0) ao conforto (nota cheia).
+// Escala log porque a liquidez varia em ordens de grandeza (100k → 4M).
+const LIQUIDITY_COMFORT = 1_000_000 // R$/dia para nota cheia de liquidez
+const LOW_LIQUIDITY = 300_000 // abaixo disso, aviso de baixa liquidez
+// Track record: meses de histórico de proventos para nota cheia. Fundo com
+// menos que NEW_FUND_MONTHS de vida ainda não passou por um ciclo de estresse.
+const TRACK_RECORD_TARGET = 24
+const NEW_FUND_MONTHS = 18
 // Quantos candidatos pré-selecionados por DY recebem análise profunda
 // (cada um custa ~2 requests a fontes externas).
 const CANDIDATES = 30
@@ -177,38 +194,99 @@ export function scoreCandidate(
 
   const monthlyYield = (avgPerShare / entry.price) * 100
 
+  // Histórico completo de rendimentos (além da janela de 12m), agregado por
+  // mês e do mais recente para o mais antigo — base para idade e tendência.
+  const incomeByMonthAll = new Map<string, number>()
+  for (const dividend of dividends) {
+    if (isAmortization(dividend)) continue
+    if (dividend.exDate > today) continue // ignora proventos já anunciados p/ o futuro
+    const month = dividend.exDate.slice(0, 7)
+    incomeByMonthAll.set(month, (incomeByMonthAll.get(month) ?? 0) + dividend.value)
+  }
+  const monthsDesc = Array.from(incomeByMonthAll.keys()).sort().reverse()
+
+  // Idade: meses desde o primeiro provento pago. Fundo novo ainda não passou
+  // por um ciclo de juros/estresse de crédito — "12/12 pagou" vale menos.
+  const firstMonth = monthsDesc[monthsDesc.length - 1]
+  const historyMonths = firstMonth
+    ? Math.max(
+        1,
+        Math.round(
+          (Date.now() - new Date(`${firstMonth}-01`).getTime()) /
+            (30 * 24 * 60 * 60 * 1000)
+        )
+      )
+    : monthsPaid
+
+  // Tendência do provento: média dos 6 meses recentes vs os 6 anteriores.
+  // Provento em queda suave passa despercebido pelo CV (que só vê dispersão),
+  // mas é o jeito que deterioração de carteira/calote aparece na prática.
+  let dividendTrend: number | null = null
+  if (monthsDesc.length >= 8) {
+    const recent = monthsDesc.slice(0, 6).map((m) => incomeByMonthAll.get(m)!)
+    const prior = monthsDesc.slice(6, 12).map((m) => incomeByMonthAll.get(m)!)
+    if (prior.length >= 3) {
+      const recentAvg = recent.reduce((s, v) => s + v, 0) / recent.length
+      const priorAvg = prior.reduce((s, v) => s + v, 0) / prior.length
+      if (priorAvg > 0) dividendTrend = (recentAvg - priorAvg) / priorAvg
+    }
+  }
+
   // --- Score (0–100) ---
 
-  // Yield (35): a métrica central — 0,5% a.m. vale 0, 1,2% a.m. vale nota cheia.
-  const yieldScore = Math.min(Math.max((monthlyYield - 0.5) / 0.7, 0), 1) * 35
+  // Yield (30): a métrica central — 0,5% a.m. vale 0, 1,2% a.m. vale nota cheia.
+  const yieldScore = Math.min(Math.max((monthlyYield - 0.5) / 0.7, 0), 1) * 30
 
-  // Consistência (20): pagou em quantos dos últimos 12 meses.
-  const consistencyScore = (Math.min(monthsPaid, 12) / 12) * 20
+  // Consistência (15): pagou em quantos dos últimos 12 meses.
+  const consistencyScore = (Math.min(monthsPaid, 12) / 12) * 15
 
-  // Estabilidade do provento (15): CV de 0,4+ zera (renda imprevisível).
-  const dividendStabilityScore = (1 - Math.min(cv / 0.4, 1)) * 15
+  // Estabilidade do provento (12): CV de 0,4+ zera (renda imprevisível).
+  const dividendStabilityScore = (1 - Math.min(cv / 0.4, 1)) * 12
 
-  // Estabilidade do preço (15): só queda penaliza (yield alto com cota
+  // Estabilidade do preço (13): só queda penaliza (yield alto com cota
   // derretendo é o mercado devolvendo o rendimento); -20% em 12m zera.
   // Sem histórico, fica no meio-termo em vez de premiar ou punir às cegas.
   const priceDrop = priceChange12m !== null ? Math.max(0, -priceChange12m) : null
   const priceStabilityScore =
-    priceDrop !== null ? (1 - Math.min(priceDrop / 20, 1)) * 15 : 7.5
+    priceDrop !== null ? (1 - Math.min(priceDrop / 20, 1)) * 13 : 6.5
 
-  // P/VP (15): pagar menos pelo mesmo rendimento é melhor, mas desconto
+  // P/VP (10): pagar menos pelo mesmo rendimento é melhor, mas desconto
   // extremo é sinal de problema. Nota cheia entre 0,70 e 1,05, caindo até
   // zerar em 0,45 e 1,40.
   let pvpScore: number
   if (entry.pvp >= 0.7 && entry.pvp <= 1.05) {
-    pvpScore = 15
+    pvpScore = 10
   } else if (entry.pvp < 0.7) {
-    pvpScore = Math.max(0, (entry.pvp - 0.45) / 0.25) * 15
+    pvpScore = Math.max(0, (entry.pvp - 0.45) / 0.25) * 10
   } else {
-    pvpScore = Math.max(0, (1.4 - entry.pvp) / 0.35) * 15
+    pvpScore = Math.max(0, (1.4 - entry.pvp) / 0.35) * 10
   }
+
+  // Liquidez (10): passar no filtro não basta — perto do piso é difícil
+  // montar/desmontar posição. Escala log de MIN_LIQUIDITY a LIQUIDITY_COMFORT.
+  const liquidityScore =
+    entry.liquidity > 0
+      ? Math.min(
+          Math.max(
+            Math.log(entry.liquidity / MIN_LIQUIDITY) /
+              Math.log(LIQUIDITY_COMFORT / MIN_LIQUIDITY),
+            0
+          ),
+          1
+        ) * 10
+      : 0
+
+  // Track record (10): meses de histórico até TRACK_RECORD_TARGET.
+  const trackRecordScore = Math.min(historyMonths / TRACK_RECORD_TARGET, 1) * 10
 
   // Amortização (penalidade até -20): devolver capital infla o yield.
   const amortizationPenalty = amortizationShare * 20
+
+  // Provento em queda (penalidade até -15): -20% ou mais na média recente zera.
+  const dividendTrendPenalty =
+    dividendTrend !== null && dividendTrend < 0
+      ? Math.min(-dividendTrend / 0.2, 1) * 15
+      : 0
 
   const score = Math.max(
     0,
@@ -216,8 +294,11 @@ export function scoreCandidate(
       consistencyScore +
       dividendStabilityScore +
       priceStabilityScore +
-      pvpScore -
-      amortizationPenalty
+      pvpScore +
+      liquidityScore +
+      trackRecordScore -
+      amortizationPenalty -
+      dividendTrendPenalty
   )
 
   const flags: string[] = []
@@ -225,6 +306,10 @@ export function scoreCandidate(
   if (priceChange12m !== null && priceChange12m < -15) flags.push('queda_preco')
   if (monthsPaid < 10) flags.push('pagamento_irregular')
   if (priceChange12m === null) flags.push('sem_historico_preco')
+  if (entry.liquidity < LOW_LIQUIDITY) flags.push('baixa_liquidez')
+  if (historyMonths < NEW_FUND_MONTHS) flags.push('fundo_novo')
+  if (dividendTrend !== null && dividendTrend < -0.08)
+    flags.push('provento_em_queda')
 
   return {
     ticker: entry.ticker,
@@ -237,9 +322,11 @@ export function scoreCandidate(
     monthly_yield_pct: round2(monthlyYield),
     annual_yield_pct: round2(monthlyYield * 12),
     months_paid_12m: Math.min(monthsPaid, 12),
+    history_months: historyMonths,
     price_change_12m_pct:
       priceChange12m !== null ? round2(priceChange12m) : null,
     amortization_share_pct: round2(amortizationShare * 100),
+    dividend_trend_pct: dividendTrend !== null ? round2(dividendTrend * 100) : null,
     score: round2(score),
     score_breakdown: {
       yield: round2(yieldScore),
@@ -247,7 +334,10 @@ export function scoreCandidate(
       dividend_stability: round2(dividendStabilityScore),
       price_stability: round2(priceStabilityScore),
       pvp: round2(pvpScore),
+      liquidity: round2(liquidityScore),
+      track_record: round2(trackRecordScore),
       amortization_penalty: round2(-amortizationPenalty),
+      dividend_trend_penalty: round2(-dividendTrendPenalty),
     },
     flags,
     source,

@@ -27,6 +27,7 @@ interface SerializedInvestment {
   broker: string | null
   ticker: string | null
   status: string
+  is_reserve: boolean
   notes: string | null
   updated_at: Date
 }
@@ -65,6 +66,7 @@ export class GetInvestmentPortfolioUnifiedService {
         broker: inv.broker,
         ticker: inv.ticker,
         status: inv.status,
+        is_reserve: inv.is_reserve,
         notes: inv.notes,
         updated_at: inv.updated_at,
       }))

@@ -28,9 +28,14 @@ function monthsAgo(n: number): string {
     .slice(0, 10)
 }
 
-/** 12 rendimentos mensais de mesmo valor, do mês passado para trás. */
-function steadyDividends(value: number, type = 'Rendimento'): FiiDividend[] {
-  return Array.from({ length: 12 }, (_, i) => ({
+/** Rendimentos mensais de mesmo valor, do mês passado para trás.
+ *  Por padrão 30 meses: um fundo "bom" tem track record, não só 12m. */
+function steadyDividends(
+  value: number,
+  type = 'Rendimento',
+  count = 30
+): FiiDividend[] {
+  return Array.from({ length: count }, (_, i) => ({
     exDate: monthsAgo(i + 1),
     paymentDate: monthsAgo(i + 1),
     value,
@@ -125,8 +130,68 @@ describe('scoreCandidate', () => {
     const scored = scoreCandidate(makeEntry(), steadyDividends(0.1), 'statusinvest', null)
 
     expect(scored!.price_change_12m_pct).toBeNull()
-    expect(scored!.score_breakdown.price_stability).toBe(7.5)
+    expect(scored!.score_breakdown.price_stability).toBe(6.5)
     expect(scored!.flags).toContain('sem_historico_preco')
+  })
+
+  it('premia liquidez: fundo perto do piso pontua menos que um líquido', () => {
+    const liquid = scoreCandidate(
+      makeEntry({ liquidity: 4_000_000 }),
+      steadyDividends(0.1),
+      'statusinvest',
+      0
+    )
+    const illiquid = scoreCandidate(
+      makeEntry({ liquidity: 120_000 }),
+      steadyDividends(0.1),
+      'statusinvest',
+      0
+    )
+
+    expect(illiquid!.score_breakdown.liquidity).toBeLessThan(
+      liquid!.score_breakdown.liquidity
+    )
+    expect(illiquid!.score).toBeLessThan(liquid!.score)
+    expect(illiquid!.flags).toContain('baixa_liquidez')
+    expect(liquid!.flags).not.toContain('baixa_liquidez')
+  })
+
+  it('penaliza fundo novo: pouco histórico não passou por um ciclo', () => {
+    const seasoned = scoreCandidate(makeEntry(), steadyDividends(0.1), 'statusinvest', 0)
+    const brandNew = scoreCandidate(
+      makeEntry(),
+      steadyDividends(0.1, 'Rendimento', 10), // só 10 meses de vida
+      'statusinvest',
+      0
+    )
+
+    expect(brandNew!.score_breakdown.track_record).toBeLessThan(
+      seasoned!.score_breakdown.track_record
+    )
+    expect(brandNew!.flags).toContain('fundo_novo')
+    expect(seasoned!.flags).not.toContain('fundo_novo')
+  })
+
+  it('penaliza provento em queda: média recente abaixo da anterior', () => {
+    const stable = scoreCandidate(makeEntry(), steadyDividends(0.1), 'statusinvest', 0)
+
+    // Provento caindo suavemente: 6 meses recentes a 0,08, anteriores a 0,11.
+    // O CV é baixo (queda suave), então só a tendência captura o problema.
+    const declining = scoreCandidate(
+      makeEntry(),
+      steadyDividends(0.1).map((d, i) => ({
+        ...d,
+        value: i < 6 ? 0.08 : 0.11,
+      })),
+      'statusinvest',
+      0
+    )
+
+    expect(declining!.dividend_trend_pct).toBeLessThan(0)
+    expect(declining!.score_breakdown.dividend_trend_penalty).toBeLessThan(0)
+    expect(declining!.score).toBeLessThan(stable!.score)
+    expect(declining!.flags).toContain('provento_em_queda')
+    expect(stable!.flags).not.toContain('provento_em_queda')
   })
 
   it('descarta fundo sem proventos na janela de 12 meses', () => {

@@ -1,7 +1,10 @@
 import { Prisma } from "@prisma/client";
 import {
   computeMonthTotals,
+  ClosingSnapshot,
   MonthSummaryService,
+  MonthTotals,
+  totalsFromSnapshot,
 } from "./month-summary";
 import { previousPeriod } from "./utils/period";
 import { toDecimal } from "./utils/money";
@@ -62,32 +65,56 @@ export class GetFinancialOverviewService {
   }: GetFinancialOverviewServiceRequest): Promise<GetFinancialOverviewServiceResponse> {
     const records = await this.monthSummaryService.fetch({ userId, month, year });
 
-    let previousBalance = toDecimal(records.financialData?.previous_balance);
+    // Mês fechado é EXIBIDO a partir do snapshot congelado no fechamento —
+    // imune a edições posteriores nos lançamentos (ex.: uma purchase_date
+    // alterada depois não pode mais mexer num mês já confirmado). Só cai no
+    // cálculo ao vivo se ainda não há snapshot (mês aberto, ou fechado antes
+    // de o snapshot passar a existir).
+    const snapshot = records.financialData?.closing_snapshot as
+      | ClosingSnapshot
+      | null
+      | undefined;
 
-    if (previousBalance.isZero()) {
-      const prev = previousPeriod({ month, year });
-      const prevTotals = await this.monthSummaryService.execute({
-        userId,
-        month: prev.month,
-        year: prev.year,
-      });
+    let totals: MonthTotals;
 
-      // Só herda saldo de mês anterior fechado (mesma regra do confirm-month)
-      if (prevTotals.isConfirmed) {
-        previousBalance = prevTotals.finalBalance;
+    if (records.financialData?.is_confirmed && snapshot) {
+      totals = totalsFromSnapshot(snapshot);
+    } else {
+      let previousBalance = toDecimal(records.financialData?.previous_balance);
+
+      if (previousBalance.isZero()) {
+        const prev = previousPeriod({ month, year });
+        const prevTotals = await this.monthSummaryService.execute({
+          userId,
+          month: prev.month,
+          year: prev.year,
+        });
+
+        // Só herda saldo de mês anterior fechado (mesma regra do confirm-month)
+        if (prevTotals.isConfirmed) {
+          previousBalance = prevTotals.finalBalance;
+        }
       }
+
+      totals = computeMonthTotals(records, { month, year, previousBalance });
     }
 
-    const totals = computeMonthTotals(records, { month, year, previousBalance });
+    const frozen = Boolean(records.financialData?.is_confirmed && snapshot);
 
     const totalIncome = totals.totalIncome.toNumber();
     const totalExpenses = totals.totalExpenses.toNumber();
     const availableAmount = totals.finalBalance.toNumber();
 
-    // Usar salário como referência para percentuais se disponível, senão a receita total
-    const referenceIncome = records.salary
-      ? toDecimal(records.salary.amount).toNumber()
-      : totalIncome;
+    // Usar salário como referência para percentuais se disponível, senão a
+    // receita total. Em mês congelado usa o salário do snapshot, para os
+    // percentuais também ficarem imunes a mudanças posteriores no salário.
+    const referenceIncome = frozen
+      ? totals.salaryAmount.gt(0)
+        ? totals.salaryAmount.toNumber()
+        : totalIncome
+      : records.salary
+        ? toDecimal(records.salary.amount).toNumber()
+        : totalIncome;
 
     const expensePercentage =
       referenceIncome > 0 ? (totalExpenses / referenceIncome) * 100 : 0;
@@ -98,7 +125,12 @@ export class GetFinancialOverviewService {
     const reservePercentage =
       totalIncome > 0 ? (reserveAmount / totalIncome) * 100 : 0;
 
-    const isOverBudget = totals.totalOutflows.gt(totals.totalIncome);
+    // "Acima do orçamento" = os GASTOS (despesas + cartão + impostos) passaram
+    // da receita. Investir NÃO é gasto: é alocação de capital, e a taxa de
+    // reserva acima já conta investimento como poupança. Incluir investimentos
+    // aqui fazia um aporte grande (ex.: reinvestir um CDB que venceu, ou aplicar
+    // a reserva acumulada) disparar "gastos acima da receita" sem sentido.
+    const isOverBudget = totals.totalExpenses.gt(totals.totalIncome);
 
     return {
       overview: {

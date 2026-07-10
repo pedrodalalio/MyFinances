@@ -22,6 +22,7 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
         ticker: data.ticker,
         dividend_yield: data.dividendYield,
         status: data.status,
+        is_reserve: data.isReserve ?? false,
         notes: data.notes,
         user_id: data.userId
       }
@@ -80,6 +81,7 @@ export class PrismaInvestmentRepository implements InvestmentRepository {
     if (data.ticker !== undefined) updateData.ticker = data.ticker
     if (data.dividendYield !== undefined) updateData.dividend_yield = data.dividendYield
     if (data.status !== undefined) updateData.status = data.status
+    if (data.isReserve !== undefined) updateData.is_reserve = data.isReserve
     if (data.notes !== undefined) updateData.notes = data.notes
 
     const investment = await prisma.investment.update({

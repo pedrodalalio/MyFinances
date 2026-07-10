@@ -20,6 +20,7 @@ interface UpdateInvestmentServiceRequest {
   broker?: string
   ticker?: string
   dividendYield?: number
+  isReserve?: boolean
   notes?: string
   userId: string
 }
@@ -40,6 +41,7 @@ interface UpdateInvestmentServiceResponse {
     quantity: number | null
     broker: string | null
     gross_yield: number | null
+    is_reserve: boolean
     notes: string | null
   }
 }
@@ -66,6 +68,7 @@ export class UpdateInvestmentService {
     broker,
     ticker,
     dividendYield,
+    isReserve,
     notes,
     userId
   }: UpdateInvestmentServiceRequest): Promise<UpdateInvestmentServiceResponse> {
@@ -106,6 +109,7 @@ export class UpdateInvestmentService {
       broker,
       ticker,
       dividendYield,
+      isReserve,
       notes,
       userId
     })
@@ -126,6 +130,7 @@ export class UpdateInvestmentService {
         quantity: investment.quantity ? Number(investment.quantity) : null,
         broker: investment.broker,
         gross_yield: investment.gross_yield ? Number(investment.gross_yield) : null,
+        is_reserve: investment.is_reserve,
         notes: investment.notes
       }
     }

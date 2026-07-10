@@ -45,6 +45,64 @@ export interface MonthTotals {
   isConfirmed: boolean;
 }
 
+// Snapshot serializável (números) gravado no fechamento em FinancialData.
+// closing_snapshot. Congela o mês: a partir daí o overview o exibe como está,
+// imune a edições posteriores nos lançamentos.
+export interface ClosingSnapshot {
+  mainIncome: number;
+  checkingAccount: number;
+  previousBalance: number;
+  salaryAmount: number;
+  incomeSubtotal: number;
+  expenseSubtotal: number;
+  creditCardSubtotal: number;
+  investmentSubtotal: number;
+  taxSubtotal: number;
+  totalIncome: number;
+  totalExpenses: number;
+  totalOutflows: number;
+  finalBalance: number;
+}
+
+export function snapshotFromTotals(totals: MonthTotals): ClosingSnapshot {
+  return {
+    mainIncome: totals.mainIncome.toNumber(),
+    checkingAccount: totals.checkingAccount.toNumber(),
+    previousBalance: totals.previousBalance.toNumber(),
+    salaryAmount: totals.salaryAmount.toNumber(),
+    incomeSubtotal: totals.incomeSubtotal.toNumber(),
+    expenseSubtotal: totals.expenseSubtotal.toNumber(),
+    creditCardSubtotal: totals.creditCardSubtotal.toNumber(),
+    investmentSubtotal: totals.investmentSubtotal.toNumber(),
+    taxSubtotal: totals.taxSubtotal.toNumber(),
+    totalIncome: totals.totalIncome.toNumber(),
+    totalExpenses: totals.totalExpenses.toNumber(),
+    totalOutflows: totals.totalOutflows.toNumber(),
+    finalBalance: totals.finalBalance.toNumber(),
+  };
+}
+
+// Reconstrói MonthTotals (Decimal) a partir do snapshot congelado, para o
+// overview reaproveitar a mesma montagem de resposta do caminho ao vivo.
+export function totalsFromSnapshot(snapshot: ClosingSnapshot): MonthTotals {
+  return {
+    mainIncome: toDecimal(snapshot.mainIncome),
+    checkingAccount: toDecimal(snapshot.checkingAccount),
+    previousBalance: toDecimal(snapshot.previousBalance),
+    salaryAmount: toDecimal(snapshot.salaryAmount),
+    incomeSubtotal: toDecimal(snapshot.incomeSubtotal),
+    expenseSubtotal: toDecimal(snapshot.expenseSubtotal),
+    creditCardSubtotal: toDecimal(snapshot.creditCardSubtotal),
+    investmentSubtotal: toDecimal(snapshot.investmentSubtotal),
+    taxSubtotal: toDecimal(snapshot.taxSubtotal),
+    totalIncome: toDecimal(snapshot.totalIncome),
+    totalExpenses: toDecimal(snapshot.totalExpenses),
+    totalOutflows: toDecimal(snapshot.totalOutflows),
+    finalBalance: toDecimal(snapshot.finalBalance),
+    isConfirmed: true,
+  };
+}
+
 interface ComputeOptions {
   month: string;
   year: number;
@@ -67,8 +125,13 @@ export function computeMonthTotals(
   const expenseSubtotal = sumAmounts(records.expenses, (e) => e.amount);
   const incomeSubtotal = sumAmounts(records.incomes, (i) => i.amount);
   const taxSubtotal = sumAmounts(records.taxes, (t) => t.amount);
+  // Investimentos marcados como reserva (CDB de liquidez diária) NÃO saem do
+  // saldo: o dinheiro continua líquido e disponível, é só transferência interna
+  // conta→reserva, não gasto. Só aplicações que travam o dinheiro (ETF, FII,
+  // CDB com carência) contam como saída do mês.
   const investmentSubtotal = records.investments.reduce(
-    (sum, investment) => sum.add(investmentOutflow(investment)),
+    (sum, investment) =>
+      investment.is_reserve ? sum : sum.add(investmentOutflow(investment)),
     ZERO,
   );
 

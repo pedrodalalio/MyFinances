@@ -6,13 +6,23 @@ import { prisma } from "@/lib/prisma"
  * Cadastra UMA única transação da importação (sem agrupamento), criando o
  * registro correspondente (gasto/entrada/investimento/imposto) e marcando-a
  * como confirmada para que o "Confirmar tudo" não a recrie.
+ *
+ * Com `skipCreate: true` apenas marca a transação como confirmada sem criar
+ * nenhum registro — usado quando o investimento já foi cadastrado pelo
+ * formulário de investimentos (fluxo de importação → tela de investimento),
+ * evitando a criação duplicada do investimento "Outros".
  */
 export async function confirmTransaction(request: FastifyRequest, reply: FastifyReply) {
   const paramsSchema = z.object({
     transactionId: z.string(),
   })
 
+  const bodySchema = z.object({
+    skipCreate: z.boolean().optional(),
+  })
+
   const { transactionId } = paramsSchema.parse(request.params)
+  const { skipCreate } = bodySchema.parse(request.body ?? {})
   const userId = request.user.sub
 
   const transaction = await prisma.importTransaction.findFirst({
@@ -41,7 +51,10 @@ export async function confirmTransaction(request: FastifyRequest, reply: Fastify
   const amount = transaction.amount
   const category = transaction.category
 
-  if (transaction.type === "EXPENSE") {
+  if (skipCreate) {
+    // O registro já foi criado por outro fluxo (ex.: formulário de investimento);
+    // apenas marca como confirmada.
+  } else if (transaction.type === "EXPENSE") {
     await prisma.expense.create({
       data: { name, amount, payment_method: "PIX", category, month, year, date, user_id: userId },
     })

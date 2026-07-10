@@ -18,6 +18,7 @@ interface CreateInvestmentServiceRequest {
   broker?: string
   ticker?: string
   dividendYield?: number
+  isReserve?: boolean
   notes?: string
   userId: string
 }
@@ -55,6 +56,7 @@ export class CreateInvestmentService {
     broker,
     ticker,
     dividendYield,
+    isReserve,
     notes,
     userId
   }: CreateInvestmentServiceRequest): Promise<CreateInvestmentServiceResponse> {
@@ -74,6 +76,7 @@ export class CreateInvestmentService {
       broker,
       ticker,
       dividendYield,
+      isReserve,
       notes,
       userId
     })

@@ -46,6 +46,7 @@ export const queryKeys = {
   investmentHistory: ["investment-history"] as const,
   maturedInvestments: ["matured-investments"] as const,
   cdiComparison: (filter: string) => ["cdi-comparison", filter] as const,
+  cdiRate: ["cdi-rate"] as const,
   fiiIncome: ["fii-income"] as const,
   fiiRanking: ["fii-ranking"] as const,
   recurringExpenses: ["recurring-expenses"] as const,
