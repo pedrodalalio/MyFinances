@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { Loader2, RefreshCw, Save, Upload } from "lucide-react";
+import { FileDown, Loader2, RefreshCw, Save, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +83,23 @@ export function YieldsTab() {
     saveYields();
   };
 
+  // Gera um CSV modelo (cabeçalho + um exemplo) para o usuário preencher e
+  // reimportar. O casamento é por data de aplicação + valor aplicado, então
+  // esses dois precisam bater com o investimento já cadastrado.
+  const downloadStatementTemplate = () => {
+    const header =
+      "Nome;Data de aplicacao;Valor aplicado;Valor bruto;Valor liquido;Rentabilidade";
+    const example = "CDB Exemplo;13/09/2024;1500,00;1964,06;1882,85;119% CDI";
+    const csv = `﻿${header}\n${example}\n`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "modelo-rendimentos.csv";
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (portfolioQuery.isError) {
     return <QueryError onRetry={() => portfolioQuery.refetch()} />;
   }
@@ -99,10 +116,19 @@ export function YieldsTab() {
               <input
                 ref={statementInputRef}
                 type="file"
-                accept=".pdf"
+                accept=".pdf,.xlsx,.csv"
                 className="hidden"
                 onChange={handleImportStatement}
               />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={downloadStatementTemplate}
+                disabled={loadingYields}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Baixar modelo
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => statementInputRef.current?.click()}
@@ -113,7 +139,7 @@ export function YieldsTab() {
                 ) : (
                   <Upload className="h-4 w-4 mr-2" />
                 )}
-                Importar extrato (PDF)
+                Importar extrato/planilha
               </Button>
               <Button
                 variant="outline"
@@ -146,8 +172,12 @@ export function YieldsTab() {
             Os valores devem ser o <strong>valor total atual</strong> (aplicado + rendimento).
             Use <strong>Atualizar cotações</strong> para buscar os preços de ações, FIIs e ETFs
             automaticamente (BRAPI) nos ativos com ticker e quantidade cadastrados. Use{" "}
-            <strong>Importar extrato (PDF)</strong> para preencher bruto/líquido dos CDBs e
-            títulos de renda fixa a partir do extrato do banco. Confira e clique em Salvar.
+            <strong>Importar extrato/planilha</strong> para preencher bruto/líquido dos CDBs e
+            títulos de renda fixa a partir do extrato do banco (PDF) ou de uma planilha
+            (.xlsx/.csv) com as colunas <em>data de aplicação</em>, <em>valor aplicado</em>,{" "}
+            <em>valor bruto</em> e <em>valor líquido</em> — clique em{" "}
+            <strong>Baixar modelo</strong> para começar. O casamento é feito pela data de
+            aplicação e valor aplicado. Confira e clique em Salvar.
           </p>
         </CardHeader>
         <CardContent>

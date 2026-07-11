@@ -1,5 +1,6 @@
 import { FastifyRequest, FastifyReply } from "fastify"
 import { parseInvestmentStatementPDF } from "@/services/import/parse-investment-statement"
+import { parseInvestmentSpreadsheet } from "@/services/import/parse-investment-spreadsheet"
 import { PrismaInvestmentRepository } from "@/repositories/prisma/prisma-investment-repository"
 
 // Índice do dia (em dias desde a época, UTC) para comparar datas ignorando hora.
@@ -26,19 +27,26 @@ export async function importStatement(
     return reply.status(400).send({ message: "Nenhum arquivo enviado." })
   }
 
-  if (!file.filename.toLowerCase().endsWith(".pdf")) {
+  const fileName = file.filename.toLowerCase()
+  const isPdf = fileName.endsWith(".pdf")
+  const isSpreadsheet = fileName.endsWith(".xlsx") || fileName.endsWith(".csv")
+
+  if (!isPdf && !isSpreadsheet) {
     return reply
       .status(400)
-      .send({ message: "Envie o extrato em PDF." })
+      .send({ message: "Envie o extrato em PDF, Excel (.xlsx) ou CSV." })
   }
 
   const buffer = await file.toBuffer()
-  const holdings = await parseInvestmentStatementPDF(buffer)
+  const holdings = isPdf
+    ? await parseInvestmentStatementPDF(buffer)
+    : await parseInvestmentSpreadsheet(buffer, fileName)
 
   if (holdings.length === 0) {
     return reply.status(400).send({
-      message:
-        "Não foi possível ler os títulos do extrato. Verifique se é um extrato de renda fixa.",
+      message: isPdf
+        ? "Não foi possível ler os títulos do extrato. Verifique se é um extrato de renda fixa."
+        : "Não foi possível ler a planilha. Verifique se há uma linha de cabeçalho com as colunas: data de aplicação, valor aplicado e valor bruto (ou líquido).",
     })
   }
 

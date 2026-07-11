@@ -170,7 +170,7 @@ export function useYieldEditor(yieldInvestments: Investment[]) {
     } catch (error: unknown) {
       const message =
         (error as { response?: { data?: { message?: string } } })?.response?.data
-          ?.message ?? "Não foi possível ler o extrato. Verifique o PDF.";
+          ?.message ?? "Não foi possível ler o arquivo. Verifique o PDF ou a planilha.";
       toast.error(message);
     } finally {
       setImportingStatement(false);
