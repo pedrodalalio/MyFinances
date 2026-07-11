@@ -174,10 +174,11 @@ export function YieldsTab() {
             automaticamente (BRAPI) nos ativos com ticker e quantidade cadastrados. Use{" "}
             <strong>Importar extrato/planilha</strong> para preencher bruto/líquido dos CDBs e
             títulos de renda fixa a partir do extrato do banco (PDF) ou de uma planilha
-            (.xlsx/.csv) com as colunas <em>data de aplicação</em>, <em>valor aplicado</em>,{" "}
-            <em>valor bruto</em> e <em>valor líquido</em> — clique em{" "}
+            (.xlsx/.csv). As colunas mínimas são <em>data de aplicação</em> e{" "}
+            <em>valor bruto</em> (ou <em>valor líquido</em>); a coluna{" "}
+            <em>valor aplicado</em> é opcional e deixa o casamento mais preciso. Clique em{" "}
             <strong>Baixar modelo</strong> para começar. O casamento é feito pela data de
-            aplicação e valor aplicado. Confira e clique em Salvar.
+            aplicação (e pelo valor aplicado, quando informado). Confira e clique em Salvar.
           </p>
         </CardHeader>
         <CardContent>

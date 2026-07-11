@@ -110,9 +110,10 @@ function buildHoldings(rows: Cell[][]): ParsedInvestmentHolding[] {
       // Primeira coluna vence em caso de cabeçalhos repetidos.
       if (field && map[field] === undefined) map[field] = idx
     })
+    // "Valor aplicado" é opcional: se existir, o casamento fica mais preciso;
+    // se não, casamos só por data de aplicação. Exigimos data + (bruto ou líquido).
     if (
       map.purchaseDate !== undefined &&
-      map.applied !== undefined &&
       (map.gross !== undefined || map.net !== undefined)
     ) {
       headerRow = i
@@ -129,11 +130,12 @@ function buildHoldings(rows: Cell[][]): ParsedInvestmentHolding[] {
     const at = (f?: number): Cell => (f === undefined ? null : (row[f] ?? null))
 
     const purchaseDate = parseCellDate(at(cols.purchaseDate))
-    const applied = parseAmount(at(cols.applied))
+    const appliedRaw = parseAmount(at(cols.applied))
+    const applied = appliedRaw != null && appliedRaw > 0 ? appliedRaw : null
     let gross = parseAmount(at(cols.gross))
     let net = parseAmount(at(cols.net))
 
-    if (!purchaseDate || applied == null || applied <= 0) continue
+    if (!purchaseDate) continue
     if (gross == null && net == null) continue
     // Só um dos dois preenchido: assume iguais (ex.: sem IR retido ainda).
     if (gross == null) gross = net!
@@ -194,17 +196,61 @@ async function parseXlsx(buffer: Buffer): Promise<ParsedInvestmentHolding[]> {
   return buildHoldings(rows)
 }
 
+// Detecta o separador do CSV (; , ou tab) contando ocorrências fora de aspas,
+// para não confundir a vírgula decimal de um campo entre aspas ("R$ 1.234,56").
+function detectDelimiter(line: string): string {
+  const counts: Record<string, number> = { ";": 0, "\t": 0, ",": 0 }
+  let inQuotes = false
+  for (const ch of line) {
+    if (ch === '"') inQuotes = !inQuotes
+    else if (!inQuotes && ch in counts) counts[ch]++
+  }
+  if (counts[";"] > 0) return ";"
+  if (counts["\t"] > 0) return "\t"
+  return ","
+}
+
+// Quebra uma linha de CSV respeitando aspas (campos como "R$ 661,26" ficam
+// inteiros mesmo quando o separador é a vírgula). Aspas duplas escapam ("").
+function splitCsvLine(line: string, delimiter: string): string[] {
+  const out: string[] = []
+  let cur = ""
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          cur += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        cur += ch
+      }
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === delimiter) {
+      out.push(cur)
+      cur = ""
+    } else {
+      cur += ch
+    }
+  }
+  out.push(cur)
+  return out.map((c) => c.trim())
+}
+
 // Faz o parse de um CSV (separador ; , ou tab) em títulos.
 function parseCsv(content: string): ParsedInvestmentHolding[] {
   const lines = content.replace(/^﻿/, "").split(/\r?\n/)
+  const firstNonEmpty = lines.find((l) => l.trim())
+  const delimiter = firstNonEmpty ? detectDelimiter(firstNonEmpty) : ","
   const rows: Cell[][] = []
   for (const line of lines) {
     if (!line.trim()) continue
-    const delimiter = line.includes(";") ? ";" : line.includes("\t") ? "\t" : ","
-    const cells = line
-      .split(delimiter)
-      .map((c) => c.trim().replace(/^"|"$/g, ""))
-    rows.push(cells)
+    rows.push(splitCsvLine(line, delimiter))
   }
   return buildHoldings(rows)
 }

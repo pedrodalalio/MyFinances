@@ -43,6 +43,31 @@ describe("parseInvestmentSpreadsheet — CSV", () => {
     expect(holdings[0].net).toBeCloseTo(1964.06)
   })
 
+  it("aceita o export real do banco: sem 'valor aplicado', com R$ e datas repetidas", async () => {
+    const csv = [
+      "Data da aplicação,Valor bruto,Valor líquido,Rentabilidade",
+      '13/09/2024,"R$ 661,26","R$ 633,04",119% do CDI',
+      '13/09/2024,"R$ 1.983,80","R$ 1.899,14",119% do CDI',
+      '23/02/2026,"R$ 10.540,76","R$ 10.419,09",103% do CDI',
+    ].join("\n")
+
+    const holdings = await parseInvestmentSpreadsheet(
+      Buffer.from(csv, "utf-8"),
+      "cdbs_historico.csv",
+    )
+
+    expect(holdings).toHaveLength(3)
+    expect(holdings[0].applied).toBeNull()
+    expect(holdings[0].gross).toBeCloseTo(661.26)
+    expect(holdings[0].net).toBeCloseTo(633.04)
+    expect(holdings[1].gross).toBeCloseTo(1983.8)
+    expect(holdings[2].gross).toBeCloseTo(10540.76)
+    expect(holdings[2].rate).toBe("103% do CDI")
+    expect(holdings[0].purchaseDate.toISOString()).toBe(
+      "2024-09-13T12:00:00.000Z",
+    )
+  })
+
   it("ignora linhas sem data ou sem valores e sem cabeçalho retorna vazio", async () => {
     const semCabecalho = "13/09/2024;1500,00;1964,06"
     expect(

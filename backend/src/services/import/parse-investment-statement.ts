@@ -9,7 +9,7 @@ export interface ParsedInvestmentHolding {
   rate: string // "103,0 % CDI CETIP" (texto da taxa)
   purchaseDate: Date // Emissão
   maturityDate: Date // Vencimento
-  applied: number // V. Aplicado (principal)
+  applied: number | null // V. Aplicado (principal); null quando a planilha não traz
   gross: number // V. Bruto (valor atual)
   ir: number // Imposto de Renda retido
   iof: number // IOF retido

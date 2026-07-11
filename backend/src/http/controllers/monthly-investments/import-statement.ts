@@ -1,5 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify"
-import { parseInvestmentStatementPDF } from "@/services/import/parse-investment-statement"
+import {
+  parseInvestmentStatementPDF,
+  type ParsedInvestmentHolding,
+} from "@/services/import/parse-investment-statement"
 import { parseInvestmentSpreadsheet } from "@/services/import/parse-investment-spreadsheet"
 import { PrismaInvestmentRepository } from "@/repositories/prisma/prisma-investment-repository"
 
@@ -46,7 +49,7 @@ export async function importStatement(
     return reply.status(400).send({
       message: isPdf
         ? "Não foi possível ler os títulos do extrato. Verifique se é um extrato de renda fixa."
-        : "Não foi possível ler a planilha. Verifique se há uma linha de cabeçalho com as colunas: data de aplicação, valor aplicado e valor bruto (ou líquido).",
+        : "Não foi possível ler a planilha. Verifique se há uma linha de cabeçalho com, no mínimo, as colunas: data de aplicação e valor bruto (ou líquido).",
     })
   }
 
@@ -64,6 +67,8 @@ export async function importStatement(
       inv.investment_type !== "STOCKS",
   )
 
+  type Candidate = (typeof candidates)[number]
+
   const consumed = new Set<string>()
   const matched: Array<{
     investmentId: string
@@ -80,52 +85,99 @@ export async function importStatement(
     paper: string
     purchaseDate: string
     maturityDate: string
-    applied: number
+    applied: number | null
     gross: number
     net: number
     rate: string
   }> = []
 
-  for (const h of holdings) {
-    const holdingDay = dayIndex(h.purchaseDate)
-    const tolerance = Math.max(0.5, h.applied * 0.001)
+  function pushMatched(inv: Candidate, h: ParsedInvestmentHolding) {
+    consumed.add(inv.id)
+    matched.push({
+      investmentId: inv.id,
+      name: inv.name,
+      paper: h.paper,
+      purchaseDate: h.purchaseDate.toISOString(),
+      applied: h.applied ?? Number(inv.amount),
+      previousGross: inv.gross_yield != null ? Number(inv.gross_yield) : null,
+      previousNet: inv.net_value != null ? Number(inv.net_value) : null,
+      newGross: h.gross,
+      newNet: h.net,
+    })
+  }
 
-    // Casa por data de aplicação (±1 dia, tolerante a fuso) + valor aplicado.
-    let best: { inv: (typeof candidates)[number]; score: number } | null = null
+  function pushUnmatched(h: ParsedInvestmentHolding) {
+    unmatched.push({
+      paper: h.paper,
+      purchaseDate: h.purchaseDate.toISOString(),
+      maturityDate: h.maturityDate.toISOString(),
+      applied: h.applied,
+      gross: h.gross,
+      net: h.net,
+      rate: h.rate,
+    })
+  }
+
+  // A planilha/extrato pode ou não trazer o "valor aplicado". Se trouxer,
+  // casamos por data (±1 dia) + valor aplicado (preciso). Se não, casamos só
+  // pela data de aplicação.
+  const hasAppliedColumn = holdings.some((h) => h.applied != null)
+
+  if (hasAppliedColumn) {
+    for (const h of holdings) {
+      if (h.applied == null) {
+        pushUnmatched(h)
+        continue
+      }
+      const holdingDay = dayIndex(h.purchaseDate)
+      const applied = h.applied
+      const tolerance = Math.max(0.5, applied * 0.001)
+
+      let best: { inv: Candidate; score: number } | null = null
+      for (const inv of candidates) {
+        if (consumed.has(inv.id)) continue
+        const dayDiff = Math.abs(dayIndex(inv.purchase_date!) - holdingDay)
+        if (dayDiff > 1) continue
+        const amountDiff = Math.abs(Number(inv.amount) - applied)
+        if (amountDiff > tolerance) continue
+        const score = dayDiff * 1000 + amountDiff
+        if (!best || score < best.score) best = { inv, score }
+      }
+
+      if (best) pushMatched(best.inv, h)
+      else pushUnmatched(h)
+    }
+  } else {
+    // Modo por data: agrupa títulos e investimentos pela data de aplicação.
+    // Quando há mais de um na mesma data, desempata pareando por ordem de
+    // grandeza (maior bruto atual ↔ maior valor aplicado), o que bate quando
+    // são da mesma data e taxa.
+    const candByDay = new Map<number, Candidate[]>()
     for (const inv of candidates) {
-      if (consumed.has(inv.id)) continue
-      const dayDiff = Math.abs(dayIndex(inv.purchase_date!) - holdingDay)
-      if (dayDiff > 1) continue
-      const amountDiff = Math.abs(Number(inv.amount) - h.applied)
-      if (amountDiff > tolerance) continue
-      const score = dayDiff * 1000 + amountDiff
-      if (!best || score < best.score) best = { inv, score }
+      const key = dayIndex(inv.purchase_date!)
+      const list = candByDay.get(key) ?? []
+      list.push(inv)
+      candByDay.set(key, list)
     }
 
-    if (best) {
-      consumed.add(best.inv.id)
-      matched.push({
-        investmentId: best.inv.id,
-        name: best.inv.name,
-        paper: h.paper,
-        purchaseDate: h.purchaseDate.toISOString(),
-        applied: h.applied,
-        previousGross:
-          best.inv.gross_yield != null ? Number(best.inv.gross_yield) : null,
-        previousNet:
-          best.inv.net_value != null ? Number(best.inv.net_value) : null,
-        newGross: h.gross,
-        newNet: h.net,
-      })
-    } else {
-      unmatched.push({
-        paper: h.paper,
-        purchaseDate: h.purchaseDate.toISOString(),
-        maturityDate: h.maturityDate.toISOString(),
-        applied: h.applied,
-        gross: h.gross,
-        net: h.net,
-        rate: h.rate,
+    const holdingsByDay = new Map<number, ParsedInvestmentHolding[]>()
+    for (const h of holdings) {
+      const key = dayIndex(h.purchaseDate)
+      const list = holdingsByDay.get(key) ?? []
+      list.push(h)
+      holdingsByDay.set(key, list)
+    }
+
+    for (const [day, hs] of holdingsByDay) {
+      const cands = (candByDay.get(day) ?? []).filter((c) => !consumed.has(c.id))
+      const hsSorted = [...hs].sort((a, b) => a.gross - b.gross)
+      const candSorted = [...cands].sort(
+        (a, b) => Number(a.amount) - Number(b.amount),
+      )
+      hsSorted.forEach((h, i) => {
+        const inv = candSorted[i]
+        if (inv) pushMatched(inv, h)
+        else pushUnmatched(h)
       })
     }
   }
