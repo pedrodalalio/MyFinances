@@ -6,7 +6,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { InvestmentCharts } from "@/components/InvestmentCharts";
 import QueryError from "@/components/QueryError";
 
-import { PERIOD_LABEL, type Investment, type MaturedInvestment, type PeriodPreset } from "../types";
+import {
+  PERIOD_LABEL,
+  type Investment,
+  type PeriodPreset,
+  type RedeemTarget,
+} from "../types";
 import {
   useInvestmentHistoryQuery,
   useMaturedInvestmentsQuery,
@@ -24,7 +29,7 @@ interface PortfolioTabProps {
   onCreateInvestment: () => void;
   onEditInvestment: (investment: Investment) => void;
   // Reinvestimento de um vencido: abre o cadastro pré-preenchido no pai
-  onReinvest: (source: MaturedInvestment, amount: number, purchaseDateISO: string) => void;
+  onReinvest: (source: RedeemTarget, amount: number, purchaseDateISO: string) => void;
 }
 
 export function PortfolioTab({
@@ -34,7 +39,7 @@ export function PortfolioTab({
 }: PortfolioTabProps) {
   const [portfolioFilter, setPortfolioFilter] = useState<string>("all");
   const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("30d");
-  const [redeemingInvestment, setRedeemingInvestment] = useState<MaturedInvestment | null>(null);
+  const [redeemingInvestment, setRedeemingInvestment] = useState<RedeemTarget | null>(null);
   const [redeemMode, setRedeemMode] = useState<"redeem" | "reinvest">("redeem");
 
   const portfolioQuery = usePortfolioQuery();
@@ -53,7 +58,7 @@ export function PortfolioTab({
     portfolioGroups,
   } = usePortfolioMetrics(portfolio, historyData, portfolioFilter, periodPreset);
 
-  const openRedeemDialog = (inv: MaturedInvestment, mode: "redeem" | "reinvest" = "redeem") => {
+  const openRedeemDialog = (inv: RedeemTarget, mode: "redeem" | "reinvest" = "redeem") => {
     setRedeemingInvestment(inv);
     setRedeemMode(mode);
   };
@@ -108,6 +113,7 @@ export function PortfolioTab({
             periodPreset={periodPreset}
             onCreate={onCreateInvestment}
             onEdit={onEditInvestment}
+            onRedeem={(inv) => openRedeemDialog(inv)}
           />
         </>
       )}

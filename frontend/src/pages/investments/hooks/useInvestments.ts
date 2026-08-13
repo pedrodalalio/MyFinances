@@ -2,7 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { api } from "@/utils/api";
 import { invalidateFinancialData, queryKeys } from "@/lib/query";
-import type { CdiComparison, InvestmentHistory, MaturedInvestment, Portfolio } from "../types";
+import type {
+  CdiComparison,
+  InvestmentHistory,
+  MaturedInvestment,
+  Portfolio,
+  RedeemOutcome,
+} from "../types";
 
 export function usePortfolioQuery() {
   return useQuery({
@@ -94,14 +100,46 @@ export function useDeleteInvestmentMutation() {
   });
 }
 
+export interface RedeemRequest {
+  id: string;
+  finalValue: number;
+  // yyyy-MM-dd — define em qual mês a entrada do resgate é lançada
+  redeemDate: string;
+  partial: boolean;
+  // Valor conferido na hora do resgate; corrige o rendimento defasado
+  currentValue?: number;
+}
+
 export function useRedeemInvestmentMutation() {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateInvestments();
   return useMutation({
-    mutationFn: ({ id, finalValue }: { id: string; finalValue: number }) =>
-      api.post(`/investments/${id}/redeem`, { final_value: finalValue }),
-    onSuccess: invalidate,
-    onError: () =>
-      toast.error("Não foi possível resgatar o investimento. Tente novamente."),
+    mutationFn: async ({
+      id,
+      finalValue,
+      redeemDate,
+      partial,
+      currentValue,
+    }: RedeemRequest) => {
+      const response = await api.post(`/investments/${id}/redeem`, {
+        final_value: finalValue,
+        redeem_date: redeemDate,
+        partial,
+        ...(currentValue !== undefined ? { current_value: currentValue } : {}),
+      });
+      return response.data as { outcome: RedeemOutcome };
+    },
+    onSuccess: () => {
+      // O resgate cria uma entrada no mês — a listagem de receitas precisa
+      // recarregar junto com o resto dos dados financeiros.
+      queryClient.invalidateQueries({ queryKey: ["incomes"] });
+      invalidate();
+    },
+    onError: (error) =>
+      toast.error(
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+          "Não foi possível resgatar o investimento. Tente novamente.",
+      ),
   });
 }
 

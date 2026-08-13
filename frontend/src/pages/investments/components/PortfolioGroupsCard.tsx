@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Edit, Plus, Trash2 } from "lucide-react";
+import { Banknote, ChevronDown, ChevronUp, Edit, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,14 +21,17 @@ interface PortfolioGroupsCardProps {
   periodPreset: PeriodPreset;
   onCreate: () => void;
   onEdit: (investment: Investment) => void;
+  onRedeem: (investment: Investment) => void;
 }
 
-// Listagem "Meus Investimentos" agrupada por nome + taxa, com expandir/editar/excluir
+// Listagem "Meus Investimentos" agrupada por nome + taxa, com
+// expandir/resgatar/editar/excluir
 export function PortfolioGroupsCard({
   groups,
   periodPreset,
   onCreate,
   onEdit,
+  onRedeem,
 }: PortfolioGroupsCardProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -205,6 +208,19 @@ export function PortfolioGroupsCard({
                           )}
                         </div>
                         <div className="flex items-center gap-1 ml-2">
+                          {investment.status === "ACTIVE" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRedeem(investment);
+                              }}
+                            >
+                              <Banknote className="h-4 w-4 mr-1" />
+                              Resgatar
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"

@@ -119,7 +119,46 @@ export interface MaturedInvestment {
   ticker: string | null;
   purchase_date: string | null;
   maturity_date: string | null;
+  is_reserve: boolean;
 }
+
+// Forma mínima que o dialog de resgate consome — atende tanto um item da
+// listagem do portfólio (Investment) quanto um vencido pendente
+// (MaturedInvestment), sem forçar os dois tipos a convergirem.
+export interface RedeemTarget {
+  id: string;
+  name: string;
+  investment_type: string;
+  amount: number;
+  quantity?: number | null;
+  gross_yield?: number | null;
+  net_value?: number | null;
+  maturity_date?: string | null;
+  is_reserve?: boolean;
+  // Usados só para pré-preencher o cadastro no fluxo de reinvestimento
+  description?: string | null;
+  category?: string | null;
+  interest_rate?: number | null;
+  broker?: string | null;
+  ticker?: string | null;
+}
+
+// Resumo do que o backend fez no resgate (usado no toast de confirmação)
+export interface RedeemOutcome {
+  partial: boolean;
+  redeemedValue: number;
+  principalWithdrawn: number;
+  yieldWithdrawn: number;
+  incomeAmount: number;
+  remainingAmount: number;
+  remainingNetValue: number;
+}
+
+// Resgate parcial só faz sentido onde o valor aplicado é um montante único.
+// ETF/FII são precificados por cota: sair de parte da posição é vender cotas,
+// não sacar um valor.
+export const supportsPartialRedeem = (investmentType: string): boolean =>
+  investmentType !== "ETF" && investmentType !== "FII";
 
 export interface InvestmentYieldUpdate {
   gross_yield: string;

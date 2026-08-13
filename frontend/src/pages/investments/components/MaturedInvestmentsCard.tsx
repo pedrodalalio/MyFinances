@@ -35,7 +35,8 @@ export function MaturedInvestmentsCard({
           </Badge>
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Informe o valor final para que o dinheiro volte ao seu saldo como uma entrada.
+          Informe o valor final para fechar a aplicação e lançar a entrada no mês. Em reserva, só
+          o rendimento entra como receita — o principal já estava no seu saldo.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">

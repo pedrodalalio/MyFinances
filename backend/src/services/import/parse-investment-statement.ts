@@ -34,8 +34,12 @@ function parseDate(dd: string, mm: string, yyyy: string): Date {
 // O emissor é um único token sem espaços/dígitos no fim da linha; o papel pode
 // conter espaços e dígitos (ex.: "CDB POS 58"), por isso o capturamos de forma
 // não-gulosa antes do emissor.
+//
+// O `\s*` entre os campos cobre os dois casos: o extrato do banco, onde o
+// pdf-parse cola tudo sem separador, e um PDF montado com as colunas alinhadas
+// (o modelo baixável) — a mesma regex lê os dois.
 const HOLDING_RE =
-  /^([\d.]+,\d{2})(\d+,\d+)\s*%\s*(.+?)([\d.]+,\d{2})([\d.]+,\d{2})([\d.]+,\d{2})([\d.]+,\d{2})(\d{2})\/(\d{2})\/(\d{4})(\d{2})\/(\d{2})\/(\d{4})(.+?)([A-Za-zÀ-ÿ]+)$/
+  /^([\d.]+,\d{2})\s*(\d+,\d+)\s*%\s*(.+?)\s*([\d.]+,\d{2})\s*([\d.]+,\d{2})\s*([\d.]+,\d{2})\s*([\d.]+,\d{2})\s*(\d{2})\/(\d{2})\/(\d{4})\s*(\d{2})\/(\d{2})\/(\d{4})\s*(.+?)\s*([A-Za-zÀ-ÿ]+)$/
 
 /**
  * Faz o parse do "Resumo das Aplicações" de um extrato de renda fixa

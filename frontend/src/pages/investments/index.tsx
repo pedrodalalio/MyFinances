@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PortfolioTab } from "./components/PortfolioTab";
 import { YieldsTab } from "./components/YieldsTab";
 import { InvestmentFormDialog } from "./components/InvestmentFormDialog";
-import type { Investment, InvestmentFormValues, MaturedInvestment } from "./types";
+import type { Investment, InvestmentFormValues, RedeemTarget } from "./types";
 
 interface FormDialogState {
   open: boolean;
@@ -42,7 +42,7 @@ const UnifiedInvestmentsPage = () => {
   // Após resgatar no modo reinvestir, abre o cadastro de um novo investimento
   // pré-preenchido com os dados do investimento vencido
   const openCreateFromReinvest = (
-    source: MaturedInvestment,
+    source: RedeemTarget,
     amount: number,
     purchaseDateISO: string,
   ) => {

@@ -19,6 +19,10 @@ import { YieldTickerGroup } from "./YieldTickerGroup";
 import { YieldTreasuryGroups } from "./YieldTreasuryGroups";
 import { YieldOtherInvestments } from "./YieldOtherInvestments";
 import { YieldSummaryDialog } from "./YieldSummaryDialog";
+import {
+  downloadStatementTemplateCsv,
+  downloadStatementTemplatePdf,
+} from "../statement-template";
 
 // Aba Rendimentos: atualização manual/automática dos valores brutos e líquidos
 export function YieldsTab() {
@@ -83,23 +87,6 @@ export function YieldsTab() {
     saveYields();
   };
 
-  // Gera um CSV modelo (cabeçalho + um exemplo) para o usuário preencher e
-  // reimportar. O casamento é por data de aplicação + valor aplicado, então
-  // esses dois precisam bater com o investimento já cadastrado.
-  const downloadStatementTemplate = () => {
-    const header =
-      "Nome;Data de aplicacao;Valor aplicado;Valor bruto;Valor liquido;Rentabilidade";
-    const example = "CDB Exemplo;13/09/2024;1500,00;1964,06;1882,85;119% CDI";
-    const csv = `﻿${header}\n${example}\n`;
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "modelo-rendimentos.csv";
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   if (portfolioQuery.isError) {
     return <QueryError onRetry={() => portfolioQuery.refetch()} />;
   }
@@ -123,11 +110,20 @@ export function YieldsTab() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={downloadStatementTemplate}
-                disabled={loadingYields}
+                onClick={downloadStatementTemplateCsv}
+                title="Baixa uma planilha de exemplo com as colunas que a importação espera"
               >
                 <FileDown className="h-4 w-4 mr-2" />
-                Baixar modelo
+                Modelo CSV
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void downloadStatementTemplatePdf()}
+                title="Baixa um PDF de exemplo com o layout que a importação espera"
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                Modelo PDF
               </Button>
               <Button
                 variant="outline"
@@ -177,7 +173,8 @@ export function YieldsTab() {
             (.xlsx/.csv). As colunas mínimas são <em>data de aplicação</em> e{" "}
             <em>valor bruto</em> (ou <em>valor líquido</em>); a coluna{" "}
             <em>valor aplicado</em> é opcional e deixa o casamento mais preciso. Clique em{" "}
-            <strong>Baixar modelo</strong> para começar. O casamento é feito pela data de
+            <strong>Modelo CSV</strong> (ou <strong>Modelo PDF</strong>, se for gerar o arquivo
+            a partir dos prints do banco) para começar. O casamento é feito pela data de
             aplicação (e pelo valor aplicado, quando informado). Confira e clique em Salvar.
           </p>
         </CardHeader>

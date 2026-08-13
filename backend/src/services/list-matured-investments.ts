@@ -15,6 +15,7 @@ interface MaturedInvestment {
   ticker: string | null
   purchase_date: Date | null
   maturity_date: Date | null
+  is_reserve: boolean
 }
 
 interface ListMaturedInvestmentsResponse {
@@ -44,6 +45,7 @@ export class ListMaturedInvestmentsService {
         ticker: inv.ticker,
         purchase_date: inv.purchase_date,
         maturity_date: inv.maturity_date,
+        is_reserve: inv.is_reserve,
       }))
     }
   }
