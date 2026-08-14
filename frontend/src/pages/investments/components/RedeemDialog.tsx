@@ -84,7 +84,9 @@ export function RedeemDialog({ investment, mode, onClose, onReinvest }: RedeemDi
   const fraction = consumesWholePosition || !valueIsValid ? 1 : value / currentValue;
   const principalWithdrawn = applied * fraction;
   const yieldWithdrawn = valueIsValid ? value - principalWithdrawn : 0;
-  const incomeAmount = investment?.is_reserve ? Math.max(yieldWithdrawn, 0) : value;
+  // O valor cheio entra como receita — o aporte já tinha saído do saldo no mês
+  // da aplicação. Espelha redeem-investment.ts.
+  const incomeAmount = value;
 
   const switchMode = (partial: boolean) => {
     setIsPartial(partial);
@@ -247,16 +249,11 @@ export function RedeemDialog({ investment, mode, onClose, onReinvest }: RedeemDi
                     {formatCurrency(currentValue)}.
                   </p>
                 )}
-                {investment.is_reserve ? (
-                  <p className="text-muted-foreground">
-                    Reserva: o principal já estava no seu saldo, então entra como receita do mês só
-                    o rendimento de <strong>{formatCurrency(incomeAmount)}</strong>.
-                  </p>
-                ) : (
-                  <p className="text-muted-foreground">
-                    Entra como receita do mês: <strong>{formatCurrency(incomeAmount)}</strong>.
-                  </p>
-                )}
+                <p className="text-muted-foreground">
+                  Entra como receita do mês: <strong>{formatCurrency(incomeAmount)}</strong> (
+                  {formatCurrency(principalWithdrawn)} de principal +{" "}
+                  {formatCurrency(yieldWithdrawn)} de rendimento).
+                </p>
               </div>
             )}
 

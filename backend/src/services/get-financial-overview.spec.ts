@@ -56,8 +56,8 @@ describe('GetFinancialOverviewService — is_over_budget', () => {
     expect(overview.financial_data.investment_subtotal).toBe(10000)
   })
 
-  it('reserva (liquidez diária) não conta como saída nem entra no saldo', async () => {
-    // Um aporte comum (500) + uma reserva grande (7000): só o comum é saída.
+  it('reserva (liquidez diária) sai do saldo igual a qualquer outro aporte', async () => {
+    // Um aporte comum (500) + uma reserva grande (7000): os dois são saída.
     const service = makeService(
       makeRecords({
         investments: [
@@ -69,10 +69,10 @@ describe('GetFinancialOverviewService — is_over_budget', () => {
 
     const { overview } = await service.execute(req)
 
-    // Reserva fora do subtotal de investimentos e, portanto, fora das saídas.
-    expect(overview.financial_data.investment_subtotal).toBe(500)
-    // Saldo = receita (salário 5000 + saldo ant. 1) − investimento comum (500).
-    expect(overview.financial_data.final_balance).toBe(4501)
+    expect(overview.financial_data.investment_subtotal).toBe(7500)
+    // Saldo = receita (salário 5000 + saldo ant. 1) − os dois aportes (7500).
+    expect(overview.financial_data.final_balance).toBe(-2499)
+    // Aporte não é gasto: saldo negativo por investir não é estourar orçamento.
     expect(overview.analysis.is_over_budget).toBe(false)
   })
 

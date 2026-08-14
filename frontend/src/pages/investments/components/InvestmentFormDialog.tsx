@@ -505,9 +505,9 @@ export function InvestmentFormDialog({
                   <div className="space-y-0.5 pr-4">
                     <FormLabel>Liquidez diária / reserva</FormLabel>
                     <p className="text-xs text-muted-foreground">
-                      Dinheiro que continua líquido e disponível (ex.: CDB de
-                      liquidez diária). Não conta como saída nem reduz o Saldo em
-                      Conta do mês, mas segue no portfólio rendendo.
+                      Dinheiro que pode ser resgatado a qualquer momento (ex.:
+                      CDB de liquidez diária). Só marca a posição no portfólio —
+                      o aporte sai do saldo do mês igual a qualquer outro.
                     </p>
                   </div>
                   <FormControl>

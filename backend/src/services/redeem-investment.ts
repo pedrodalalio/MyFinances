@@ -125,21 +125,17 @@ export class RedeemInvestmentService {
       }
     })
 
-    // Reserva (liquidez diária) nunca saiu do saldo na aplicação — ver
-    // month-summary.ts. Trazer o valor cheio de volta como receita contaria o
-    // principal duas vezes; só o rendimento realizado é entrada nova.
-    const incomeAmount = investment.is_reserve ? yieldWithdrawn : redeemed
+    // O valor cheio volta como receita, reserva ou não: o aporte saiu do saldo
+    // no mês da aplicação (ver month-summary.ts), então o principal que retorna
+    // é dinheiro entrando na conta de novo, não duplicata.
+    const incomeAmount = redeemed
     const label = isPartial ? 'Resgate parcial' : 'Resgate'
 
     if (incomeAmount.gt(ZERO)) {
       await this.incomeRepository.create({
         userId,
-        name: investment.is_reserve
-          ? `Rendimento do resgate: ${investment.name}`
-          : `${label}: ${investment.name}`,
-        description: investment.is_reserve
-          ? `${label} de ${investment.name} (reserva) — só o rendimento entra como receita, o principal já estava no saldo`
-          : `${label} do investimento ${investment.name}`,
+        name: `${label}: ${investment.name}`,
+        description: `${label} do investimento ${investment.name}`,
         amount: incomeAmount.toNumber(),
         source: investment.broker ?? undefined,
         category: 'Resgate de Investimento',

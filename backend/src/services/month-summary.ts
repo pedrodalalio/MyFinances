@@ -125,15 +125,12 @@ export function computeMonthTotals(
   const expenseSubtotal = sumAmounts(records.expenses, (e) => e.amount);
   const incomeSubtotal = sumAmounts(records.incomes, (i) => i.amount);
   const taxSubtotal = sumAmounts(records.taxes, (t) => t.amount);
-  // Investimentos marcados como reserva (CDB de liquidez diária) NÃO saem do
-  // saldo: o dinheiro continua líquido e disponível, é só transferência interna
-  // conta→reserva, não gasto. Só aplicações que travam o dinheiro (ETF, FII,
-  // CDB com carência) contam como saída do mês.
-  const investmentSubtotal = records.investments.reduce(
-    (sum, investment) =>
-      investment.is_reserve ? sum : sum.add(investmentOutflow(investment)),
-    ZERO,
-  );
+  // TODO aporte sai da conta corrente no mês em que é feito — inclusive a
+  // reserva de liquidez diária. Ela é resgatável a qualquer momento, mas o
+  // dinheiro deixa o saldo na aplicação, e por isso o resgate devolve o valor
+  // cheio como receita (ver redeem-investment.ts). `is_reserve` hoje só afeta
+  // como o portfólio exibe a posição, não o cálculo do mês.
+  const investmentSubtotal = sumAmounts(records.investments, investmentOutflow);
 
   const mainIncome = toDecimal(financialData?.main_income);
   const checkingAccount = toDecimal(financialData?.checking_account);

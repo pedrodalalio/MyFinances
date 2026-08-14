@@ -95,7 +95,7 @@ describe('RedeemInvestmentService', () => {
     expect(updates[0].status).toBeUndefined()
   })
 
-  it('em reserva lança só o rendimento como receita do mês, não o principal', async () => {
+  it('em reserva a entrada também é o valor cheio, principal incluído', async () => {
     const sut = makeService(makeInvestment())
 
     await sut.execute({
@@ -106,10 +106,11 @@ describe('RedeemInvestmentService', () => {
       partial: true,
     })
 
-    // O principal da reserva nunca saiu do saldo (month-summary ignora
-    // is_reserve), então devolvê-lo inteiro como receita contaria duas vezes.
+    // O aporte da reserva saiu do saldo no mês da aplicação (month-summary
+    // conta todo investimento como saída), então o principal que volta é
+    // dinheiro entrando de novo — não duplicata.
     expect(incomes).toHaveLength(1)
-    expect(incomes[0]).toMatchObject({ amount: 100, month: '08', year: 2026 })
+    expect(incomes[0]).toMatchObject({ amount: 2100, month: '08', year: 2026 })
   })
 
   it('fora da reserva a entrada é o valor cheio resgatado', async () => {
@@ -156,12 +157,12 @@ describe('RedeemInvestmentService', () => {
     expect(updates[0]).toMatchObject({ status: 'MATURED' })
   })
 
-  it('reserva sem rendimento no saque não cria receita nenhuma', async () => {
-    // Sem acompanhamento de valor atual, a posição vale o aplicado: sacar é
-    // devolver principal puro — nada de novo entra no mês.
+  it('sem rendimento acompanhado, o saque entra como principal puro', async () => {
+    // Sem valor atual registrado a posição vale o aplicado: os 3.000 sacados
+    // são todos principal, e mesmo assim entram como receita do mês.
     const sut = makeService(makeInvestment({ gross_yield: null, net_value: null }))
 
-    await sut.execute({
+    const { outcome } = await sut.execute({
       investmentId: 'inv-1',
       userId: 'user-1',
       finalValue: 3000,
@@ -169,7 +170,8 @@ describe('RedeemInvestmentService', () => {
       partial: true,
     })
 
-    expect(incomes).toHaveLength(0)
+    expect(outcome.yieldWithdrawn).toBe(0)
+    expect(incomes[0]).toMatchObject({ amount: 3000 })
     expect(updates[0]).toMatchObject({ amount: 7000 })
   })
 
@@ -190,7 +192,7 @@ describe('RedeemInvestmentService', () => {
     expect(outcome.principalWithdrawn).toBe(1944.44)
     expect(outcome.yieldWithdrawn).toBe(155.56)
     expect(outcome.remainingNetValue).toBe(8700)
-    expect(incomes[0]).toMatchObject({ amount: 155.56 })
+    expect(incomes[0]).toMatchObject({ amount: 2100 })
   })
 
   it('o valor informado atualiza a posição, e o bruto acompanha o salto', async () => {

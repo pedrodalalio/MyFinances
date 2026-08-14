@@ -4,14 +4,8 @@ import {
   type ParsedInvestmentHolding,
 } from "@/services/import/parse-investment-statement"
 import { parseInvestmentSpreadsheet } from "@/services/import/parse-investment-spreadsheet"
+import { matchInvestmentHoldings } from "@/services/import/match-investment-holdings"
 import { PrismaInvestmentRepository } from "@/repositories/prisma/prisma-investment-repository"
-
-// Índice do dia (em dias desde a época, UTC) para comparar datas ignorando hora.
-function dayIndex(d: Date): number {
-  return Math.floor(
-    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000,
-  )
-}
 
 /**
  * Recebe um extrato de renda fixa (PDF) e casa cada título do "Resumo das
@@ -69,7 +63,6 @@ export async function importStatement(
 
   type Candidate = (typeof candidates)[number]
 
-  const consumed = new Set<string>()
   const matched: Array<{
     investmentId: string
     name: string
@@ -92,7 +85,6 @@ export async function importStatement(
   }> = []
 
   function pushMatched(inv: Candidate, h: ParsedInvestmentHolding) {
-    consumed.add(inv.id)
     matched.push({
       investmentId: inv.id,
       name: inv.name,
@@ -118,69 +110,9 @@ export async function importStatement(
     })
   }
 
-  // A planilha/extrato pode ou não trazer o "valor aplicado". Se trouxer,
-  // casamos por data (±1 dia) + valor aplicado (preciso). Se não, casamos só
-  // pela data de aplicação.
-  const hasAppliedColumn = holdings.some((h) => h.applied != null)
-
-  if (hasAppliedColumn) {
-    for (const h of holdings) {
-      if (h.applied == null) {
-        pushUnmatched(h)
-        continue
-      }
-      const holdingDay = dayIndex(h.purchaseDate)
-      const applied = h.applied
-      const tolerance = Math.max(0.5, applied * 0.001)
-
-      let best: { inv: Candidate; score: number } | null = null
-      for (const inv of candidates) {
-        if (consumed.has(inv.id)) continue
-        const dayDiff = Math.abs(dayIndex(inv.purchase_date!) - holdingDay)
-        if (dayDiff > 1) continue
-        const amountDiff = Math.abs(Number(inv.amount) - applied)
-        if (amountDiff > tolerance) continue
-        const score = dayDiff * 1000 + amountDiff
-        if (!best || score < best.score) best = { inv, score }
-      }
-
-      if (best) pushMatched(best.inv, h)
-      else pushUnmatched(h)
-    }
-  } else {
-    // Modo por data: agrupa títulos e investimentos pela data de aplicação.
-    // Quando há mais de um na mesma data, desempata pareando por ordem de
-    // grandeza (maior bruto atual ↔ maior valor aplicado), o que bate quando
-    // são da mesma data e taxa.
-    const candByDay = new Map<number, Candidate[]>()
-    for (const inv of candidates) {
-      const key = dayIndex(inv.purchase_date!)
-      const list = candByDay.get(key) ?? []
-      list.push(inv)
-      candByDay.set(key, list)
-    }
-
-    const holdingsByDay = new Map<number, ParsedInvestmentHolding[]>()
-    for (const h of holdings) {
-      const key = dayIndex(h.purchaseDate)
-      const list = holdingsByDay.get(key) ?? []
-      list.push(h)
-      holdingsByDay.set(key, list)
-    }
-
-    for (const [day, hs] of holdingsByDay) {
-      const cands = (candByDay.get(day) ?? []).filter((c) => !consumed.has(c.id))
-      const hsSorted = [...hs].sort((a, b) => a.gross - b.gross)
-      const candSorted = [...cands].sort(
-        (a, b) => Number(a.amount) - Number(b.amount),
-      )
-      hsSorted.forEach((h, i) => {
-        const inv = candSorted[i]
-        if (inv) pushMatched(inv, h)
-        else pushUnmatched(h)
-      })
-    }
-  }
+  const result = matchInvestmentHoldings(holdings, candidates)
+  for (const { investment, holding } of result.matched) pushMatched(investment, holding)
+  for (const holding of result.unmatched) pushUnmatched(holding)
 
   return reply.status(200).send({
     fileName: file.filename,
